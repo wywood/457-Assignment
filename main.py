@@ -32,7 +32,7 @@ translate = (0.0,0.0)           # amount by which to translate images
 # Image
 
 imageDir      = 'images'
-imageFilename = 'ecg-02.png'
+imageFilename = 'ecg-01.png'
 imagePath     = os.path.join( imageDir, imageFilename )
 
 image    = None                 # the image as a 2D np.array
@@ -99,33 +99,39 @@ def compute():
   width  = image.shape[1]
 
   # Forward FT
-  print '1. compute FT'
-  imageFT = forwardFT( image );
+  print ('1. compute FT')
+  imageFT = forwardFT( image )
       
   # Compute magnitudes and find the maximum (excluding the DC component)
   print '2. computing FT magnitudes'
-  max = 0;
-  for u in range( width ):
-	for v in range( height ):
-	  mag = magFromComplex( imageFT[u,v] );
-		
-	  if( mag > max )
-	    max = mag;
+  maxm = 0
+
+  mag = magFromComplex( imageFT )
+  maxm = 0
+  for x in range(0, mag.shape[0]):
+    for y in range(0, mag.shape[1]):
+      if mag[x,y] > maxm and x != 0 and y != 0:   #Skip point [0,0]
+        maxm = mag[x,y]
+  print maxm
   
   # Zero the components that are less than 40% of the max
   print '3. removing low-magnitude components'
-  threshold = 0.4 * max;
-  for u in range( width ):
-	for v in range( height ):
-	  mag = magFromComplex( imageFT[u,v] );
-		
-	  if( mag < threshold )
-		gridImageFT[u,v] = np.zeros( (1,1), dtype=np.complex_ )
-	  else
-	    gridImageFT[u,v] = imageFT[u,v];
-  
-  if gridImageFT is None:
-    gridImageFT = np.zeros( ( height,width ), dtype=np.complex_ )
+  threshold = 0.4 * maxm
+  print threshold
+  gridImageFT = imageFT.copy()
+  nonzeroMag = []
+  flag = 0
+  flag2 = 0
+  for x in range(0, mag.shape[0]):
+    for y in range(0, mag.shape[1]):
+        if mag[x, y] < threshold:
+            flag += 1
+            gridImageFT[x, y] = 0
+        else:
+            nonzeroMag.append([x,y])
+            flag2 += 1
+  print flag
+  print flag2
 
   # Find (angle, distance) to each peak
   # lines = [ (angle1,distance1), (angle2,distance2) ]
@@ -134,22 +140,28 @@ def compute():
   
   # Convert back to spatial domain to get a grid-like image
   print '5. inverse FT'
-  gridImage = inverseFT( gridImageFT );
-
+  
   if gridImage is None:
     gridImage = np.zeros( ( height,width ), dtype=np.complex_ )
 
+  gridImage = inverseFT( gridImageFT )
+
+  
+
   # Remove grid image from original image
   print '6. remove grid'
-  for i in range( width ):
-	for j in range( height ):
-	  if(gridImage[i,j] > 16)
-	    resultImage[i,j] = 0;
-	  else
-	    resultImage[i,j] = gridImage[i,j];
-  
+
   if resultImage is None:
     resultImage = image.copy()
+
+  for i in range(0, width ):
+	  for j in range(0, height ):
+	    if(gridImage[i,j] > 16):
+	      resultImage[i,j] = 0
+	    else:
+	      resultImage[i,j] = gridImage[i,j]
+  
+  
 
   print 'done'
 
@@ -220,7 +232,7 @@ def display():
   glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_BORDER)
   glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST)
   glTexParameterf(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR)
-  glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, [1,0,0,1] );
+  glTexParameterfv(GL_TEXTURE_2D, GL_TEXTURE_BORDER_COLOR, [1,0,0,1] )
 
   # Images to draw, in rows and columns
 
@@ -485,7 +497,6 @@ def keyboard( key, x, y ):
            i  load image
  right arrow  forward transform
   left arrow  inverse transform
-
               translate with left mouse dragging
               zoom with right mouse draggin up/down
            z  reset the translation and zoom'''
