@@ -32,7 +32,7 @@ translate = (0.0,0.0)           # amount by which to translate images
 # Image
 
 imageDir      = 'images'
-imageFilename = 'ecg-01.png'
+imageFilename = 'ecg-02.png'
 imagePath     = os.path.join( imageDir, imageFilename )
 
 image    = None                 # the image as a 2D np.array
@@ -105,33 +105,24 @@ def compute():
   # Compute magnitudes and find the maximum (excluding the DC component)
   print '2. computing FT magnitudes'
   maxm = 0
-
   mag = magFromComplex( imageFT )
-  maxm = 0
   for x in range(0, mag.shape[0]):
     for y in range(0, mag.shape[1]):
       if mag[x,y] > maxm and x != 0 and y != 0:   #Skip point [0,0]
         maxm = mag[x,y]
-  print maxm
   
   # Zero the components that are less than 40% of the max
   print '3. removing low-magnitude components'
   threshold = 0.4 * maxm
-  print threshold
   gridImageFT = imageFT.copy()
   nonzeroMag = []
-  flag = 0
-  flag2 = 0
+
   for x in range(0, mag.shape[0]):
     for y in range(0, mag.shape[1]):
         if mag[x, y] < threshold:
-            flag += 1
             gridImageFT[x, y] = 0
         else:
             nonzeroMag.append([x,y])
-            flag2 += 1
-  print flag
-  print flag2
 
   # Find (angle, distance) to each peak
   # lines = [ (angle1,distance1), (angle2,distance2) ]
@@ -140,13 +131,11 @@ def compute():
   
   # Convert back to spatial domain to get a grid-like image
   print '5. inverse FT'
-  
+
   if gridImage is None:
     gridImage = np.zeros( ( height,width ), dtype=np.complex_ )
 
   gridImage = inverseFT( gridImageFT )
-
-  
 
   # Remove grid image from original image
   print '6. remove grid'
@@ -154,15 +143,11 @@ def compute():
   if resultImage is None:
     resultImage = image.copy()
 
-  for i in range(0, width ):
-	  for j in range(0, height ):
-	    if(gridImage[i,j] > 16):
-	      resultImage[i,j] = 0
-	    else:
-	      resultImage[i,j] = gridImage[i,j]
+  for x in range (0, gridImage.shape[0]):
+    for y in range ( 0, gridImage.shape[1]):
+      if gridImage[x,y] > 16:
+        resultImage[x,y] = 0
   
-  
-
   print 'done'
 
   return resultImage, lines
