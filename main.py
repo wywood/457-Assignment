@@ -126,8 +126,24 @@ def compute():
 
   # Find (angle, distance) to each peak
   # lines = [ (angle1,distance1), (angle2,distance2) ]
-  lines = [[1,2],[3,4]]
   print '4. finding angles and distances of grid lines'
+  
+  distances = []
+  angles = []
+  for y in range(nonzeroMag.shape[1]/2)
+    for x in range(nonzeroMag.shape[0]/2)
+	  angle = np.arctan2( (nonzeroMag.shape[0]-x)/y)
+	  angles.append(angle)
+	  distance = math.sqrt(x*x, y*y)
+	  distances.append(distance)
+	  print "Line 1: " + "angle=" + angle + " distance=" + distance
+	  
+	for x in range(nonzeroMag.shape[0], nonzeroMag.shape[0]/2, -1)
+	  angle = np.arctan2( (nonzeroMag.shape[0]-x)/y )
+	  angles.append(angle)
+	  distance = math.sqrt( (nonzeroMag.shape[0]-x), y*y)
+	  distances.append(distance)
+	  print "Line 1: " + "angle=" + angle + " distance=" + distance
   
   # Convert back to spatial domain to get a grid-like image
   print '5. inverse FT'
