@@ -32,7 +32,7 @@ translate = (0.0,0.0)           # amount by which to translate images
 # Image
 
 imageDir      = 'images'
-imageFilename = 'ecg-02.png'
+imageFilename = 'ecg-01.png'
 imagePath     = os.path.join( imageDir, imageFilename )
 
 image    = None                 # the image as a 2D np.array
@@ -126,24 +126,82 @@ def compute():
 
   # Find (angle, distance) to each peak
   # lines = [ (angle1,distance1), (angle2,distance2) ]
+  lines = [[1,2],[3,4]]
   print '4. finding angles and distances of grid lines'
   
-  distances = []
-  angles = []
-  for y in range(nonzeroMag.shape[1]/2)
-    for x in range(nonzeroMag.shape[0]/2)
-	  angle = np.arctan2( (nonzeroMag.shape[0]-x)/y)
-	  angles.append(angle)
-	  distance = math.sqrt(x*x, y*y)
-	  distances.append(distance)
-	  print "Line 1: " + "angle=" + angle + " distance=" + distance
+  distances1 = []
+  distances2 = []
+  angles1 = []
+  angles2 = []
+  angDist = []
+  print len(nonzeroMag)
+  print nonzeroMag
+
+  print width
+  print height
+
+  for i in range (len(nonzeroMag)):
+    x = nonzeroMag[i][0]
+    y = nonzeroMag[i][1]
+    print x, y
+    if y < height/2 -1:
+      if x < (width/2):
+        if x != 0 and y != 0:
+          angle = 90-math.degrees(np.arctan2(y,x))
+        else:
+          angle = 0
+        angles1.append(angle)
+        distance = np.hypot(x,y)
+        if distance > 56:
+          distances1.append(distance)
+        angDist.append([angle,distance])
+        print "Line 1: " , "angle=" , angle , " distance=" , distance
+
+      elif x < width:
+        if y != 0 and x != 0:
+          angle = 90+math.degrees(np.arctan2((x-width/2),(y)))
+        else:
+          angle = 90
+        angles2.append(angle)
+        
+        distance = np.sqrt(np.square(x-width/2) + np.square(y))
+        if distance > 15:
+          distances2.append(distance)
+        angDist.append([angle,distance])
+        print "Line 2: " , "angle=" , angle , " distance=" , distance
+
+  lines[0][0] = np.median(angles1)
+  lines[1][0] = np.median(angles2)
+
+  sortedList = sorted(angDist, key=takeFirst)
+
+  ind = 0
+  for i in range(0,len(angDist)-1):
+    if np.absolute(sortedList[i][0] - sortedList[i+1][0]) > 50:
+      ind = i+1
+      break
+  
+  angDist1 = sortedList[0:ind]
+  angDist2 = sortedList[ind:len(angDist)]
+
+  lines[0][1] = np.amin(distances1)
+  lines[1][1] = np.amin(distances2)
+
+
+  # for y in range(len(nonzeroMag)/2):
+  #   for x in range(nonzeroMag.shape[0]/2):
+	#     angle = np.arctan2( (nonzeroMag.shape[0]-x)/y)
+	#     angles.append(angle)
+	#     distance = math.sqrt(x*x, y*y)
+	#     distances.append(distance)
+	#     print "Line 1: " + "angle=" + angle + " distance=" + distance
 	  
-	for x in range(nonzeroMag.shape[0], nonzeroMag.shape[0]/2, -1)
-	  angle = np.arctan2( (nonzeroMag.shape[0]-x)/y )
-	  angles.append(angle)
-	  distance = math.sqrt( (nonzeroMag.shape[0]-x), y*y)
-	  distances.append(distance)
-	  print "Line 1: " + "angle=" + angle + " distance=" + distance
+  # for x in range(nonzeroMag.shape[0], nonzeroMag.shape[0]/2, -1):
+	#   angle = np.arctan2( (nonzeroMag.shape[0]-x)/y )
+	#   angles.append(angle)
+	#   distance = math.sqrt( (nonzeroMag.shape[0]-x), y*y)
+	#   distances.append(distance)
+	#   print "Line 1: " + "angle=" + angle + " distance=" + distance
   
   # Convert back to spatial domain to get a grid-like image
   print '5. inverse FT'
@@ -168,8 +226,8 @@ def compute():
 
   return resultImage, lines
 
-
-      
+def takeFirst(elem):
+  return elem[0]
 
 # File dialog
 
