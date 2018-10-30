@@ -132,8 +132,7 @@ def compute():
   distances1 = [] 	# Line 1 distances
   angles1 	 = [] 	# Line 1 angles
   distances2 = [] 	# Line 2 distances
-  angles2 	 = [] 	# Line 2 distances
-  angDist 	 = []	# [angle, distance]
+  angles2 	 = [] 	# Line 2 angles
 
   # Iterate through nonzeroMag to calculate angles and distances for each point from the origin
   for i in range (len(nonzeroMag)):
@@ -157,13 +156,11 @@ def compute():
         if distance > 56:
 	      # This value was found by looking at the distance dataset 
           distances1.append(distance) # Append to distances list for Line 1
-        
-        angDist.append([angle,distance]) # Append to angles, distances list for Line 1
 
       elif x < width:
-	    # Line 2
+	      # Line 2
         if x != 0 and y != 0:
-		  # If x and y aren't 0, calculate angle using bottom right as the origin
+		      # If x and y aren't 0, calculate angle using bottom right as the origin
           angle = 90 + math.degrees( np.arctan2( (x-width/2),y ) ) 
         else:
           angle = 90
@@ -171,31 +168,14 @@ def compute():
         angles2.append(angle) # Append to angles list for Line 2
         distance = np.sqrt( np.square(x-width/2) + np.square(y) ) # Calculate distance from x and y points
         
-		# Filter distances close to the origin
+		    # Filter distances close to the origin
         if distance > 15:
-		  # This value was found by looking at the distance dataset 
+		      # This value was found by looking at the distance dataset 
           distances2.append(distance)
-		  
-        angDist.append([angle,distance]) # Append to angles, distances list for Line 2
 
   lines = [[1,2],[3,4]]
   lines[0][0] = np.median(angles1) # Find the median angle for List 1
   lines[1][0] = np.median(angles2) # Find the median angle for List 2
-
-  # Sort angDist list based on angle
-  sortedList = sorted(angDist, key=takeFirst)
-
-  # Find index that separates Line 1 from Line 2
-  idx = 0
-  for i in range(0,len(angDist)-1):
-    if np.absolute(sortedList[i][0] - sortedList[i+1][0]) > 50:
-	  # Compare angle to previous angle, if the difference is greater than 50 this is where we split the list
-      idx = i+1
-      break
-  
-  # Split list based on angle
-  angDist1 = sortedList[0:idx]
-  angDist2 = sortedList[idx:len(angDist)]
 
   lines[0][1] = np.amin(distances1) # Find the min distance for List 1
   lines[1][1] = np.amin(distances2) # Find the mid angle for List 2
