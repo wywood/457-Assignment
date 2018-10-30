@@ -32,7 +32,7 @@ translate = (0.0,0.0)           # amount by which to translate images
 # Image
 
 imageDir      = 'images'
-imageFilename = 'ecg-01.png'
+imageFilename = 'ecg-02.png'
 imagePath     = os.path.join( imageDir, imageFilename )
 
 image    = None                 # the image as a 2D np.array
@@ -88,13 +88,11 @@ def magFromComplex( c ):
 #      of value > 16 (i.e. is one of the grid lines), set to zero the
 #      corresponding pixel in the original 'image'.  Do not modify
 #      'image'; instead, store your result in 'resultImage'.
-
-
-
 def compute():
-
+  # Define different images
   global image, imageFT, gridImage, gridImageFT, resultImage
 
+  # Height and width of image
   height = image.shape[0]
   width  = image.shape[1]
 
@@ -102,106 +100,105 @@ def compute():
   print ('1. compute FT')
   imageFT = forwardFT( image )
       
-  # Compute magnitudes and find the maximum (excluding the DC component)
+  # Compute magnitudes and find the maximum
   print '2. computing FT magnitudes'
-  maxm = 0
-  mag = magFromComplex( imageFT )
-  for x in range(0, mag.shape[0]):
-    for y in range(0, mag.shape[1]):
-      if mag[x,y] > maxm and x != 0 and y != 0:   #Skip point [0,0]
-        maxm = mag[x,y]
+  maximum = 0 # Starting max is 0
+  mag = magFromComplex( imageFT ) # Get magnitude of fourier image
+  
+  # Find max magnitude, skip point [0,0]
+  for x in range(1, mag.shape[0]):
+    for y in range(1, mag.shape[1]):
+      if mag[x,y] > maximum:
+        maximum = mag[x,y]
   
   # Zero the components that are less than 40% of the max
   print '3. removing low-magnitude components'
-  threshold = 0.4 * maxm
+  threshold = 0.4*maximum
   gridImageFT = imageFT.copy()
   nonzeroMag = []
 
   for x in range(0, mag.shape[0]):
     for y in range(0, mag.shape[1]):
-        if mag[x, y] < threshold:
-            gridImageFT[x, y] = 0
-        else:
-            nonzeroMag.append([x,y])
+      if mag[x,y] < threshold:
+        gridImageFT[x,y] = 0 # Zero out points that are below the threshold
+      else:
+        nonzeroMag.append([x,y]) # Keep track of points that are non-zero
 
   # Find (angle, distance) to each peak
   # lines = [ (angle1,distance1), (angle2,distance2) ]
-  lines = [[1,2],[3,4]]
   print '4. finding angles and distances of grid lines'
   
-  distances1 = []
-  distances2 = []
-  angles1 = []
-  angles2 = []
-  angDist = []
-  print len(nonzeroMag)
-  print nonzeroMag
+  # Define necessary arrays
+  distances1 = [] 	# Line 1 distances
+  angles1 	 = [] 	# Line 1 angles
+  distances2 = [] 	# Line 2 distances
+  angles2 	 = [] 	# Line 2 distances
+  angDist 	 = []	# [angle, distance]
 
-  print width
-  print height
-
+  # Iterate through nonzeroMag to calculate angles and distances for each point from the origin
   for i in range (len(nonzeroMag)):
+	# Get x and y coordinates from nonzeroMag
     x = nonzeroMag[i][0]
     y = nonzeroMag[i][1]
-    print x, y
-    if y < height/2 -1:
+	
+    if y < (height/2 - 1):
       if x < (width/2):
+	    # Line 1
         if x != 0 and y != 0:
-          angle = 90-math.degrees(np.arctan2(y,x))
+		  # If x and y aren't 0, calculate angle
+          angle = 90 - math.degrees( np.arctan2(y,x) )
         else:
           angle = 0
-        angles1.append(angle)
-        distance = np.hypot(x,y)
+		
+        angles1.append(angle) 	 # Append to angles list for Line 1
+        distance = np.hypot(x,y) # Calculate distance from x and y points
+		
+        # Filter distances close to the origin
         if distance > 56:
-          distances1.append(distance)
-        angDist.append([angle,distance])
-        print "Line 1: " , "angle=" , angle , " distance=" , distance
+	      # This value was found by looking at the distance dataset 
+          distances1.append(distance) # Append to distances list for Line 1
+        
+        angDist.append([angle,distance]) # Append to angles, distances list for Line 1
 
       elif x < width:
-        if y != 0 and x != 0:
-          angle = 90+math.degrees(np.arctan2((x-width/2),(y)))
+	    # Line 2
+        if x != 0 and y != 0:
+		  # If x and y aren't 0, calculate angle using bottom right as the origin
+          angle = 90 + math.degrees( np.arctan2( (x-width/2),y ) ) 
         else:
           angle = 90
-        angles2.append(angle)
+		  
+        angles2.append(angle) # Append to angles list for Line 2
+        distance = np.sqrt( np.square(x-width/2) + np.square(y) ) # Calculate distance from x and y points
         
-        distance = np.sqrt(np.square(x-width/2) + np.square(y))
+		# Filter distances close to the origin
         if distance > 15:
+		  # This value was found by looking at the distance dataset 
           distances2.append(distance)
-        angDist.append([angle,distance])
-        print "Line 2: " , "angle=" , angle , " distance=" , distance
+		  
+        angDist.append([angle,distance]) # Append to angles, distances list for Line 2
 
-  lines[0][0] = np.median(angles1)
-  lines[1][0] = np.median(angles2)
+  lines = [[1,2],[3,4]]
+  lines[0][0] = np.median(angles1) # Find the median angle for List 1
+  lines[1][0] = np.median(angles2) # Find the median angle for List 2
 
+  # Sort angDist list based on angle
   sortedList = sorted(angDist, key=takeFirst)
 
-  ind = 0
+  # Find index that separates Line 1 from Line 2
+  idx = 0
   for i in range(0,len(angDist)-1):
     if np.absolute(sortedList[i][0] - sortedList[i+1][0]) > 50:
-      ind = i+1
+	  # Compare angle to previous angle, if the difference is greater than 50 this is where we split the list
+      idx = i+1
       break
   
-  angDist1 = sortedList[0:ind]
-  angDist2 = sortedList[ind:len(angDist)]
+  # Split list based on angle
+  angDist1 = sortedList[0:idx]
+  angDist2 = sortedList[idx:len(angDist)]
 
-  lines[0][1] = np.amin(distances1)
-  lines[1][1] = np.amin(distances2)
-
-
-  # for y in range(len(nonzeroMag)/2):
-  #   for x in range(nonzeroMag.shape[0]/2):
-	#     angle = np.arctan2( (nonzeroMag.shape[0]-x)/y)
-	#     angles.append(angle)
-	#     distance = math.sqrt(x*x, y*y)
-	#     distances.append(distance)
-	#     print "Line 1: " + "angle=" + angle + " distance=" + distance
-	  
-  # for x in range(nonzeroMag.shape[0], nonzeroMag.shape[0]/2, -1):
-	#   angle = np.arctan2( (nonzeroMag.shape[0]-x)/y )
-	#   angles.append(angle)
-	#   distance = math.sqrt( (nonzeroMag.shape[0]-x), y*y)
-	#   distances.append(distance)
-	#   print "Line 1: " + "angle=" + angle + " distance=" + distance
+  lines[0][1] = np.amin(distances1) # Find the min distance for List 1
+  lines[1][1] = np.amin(distances2) # Find the mid angle for List 2
   
   # Convert back to spatial domain to get a grid-like image
   print '5. inverse FT'
@@ -219,6 +216,7 @@ def compute():
 
   for x in range (0, gridImage.shape[0]):
     for y in range ( 0, gridImage.shape[1]):
+	  # If pixel value is less than 16 set to 0
       if gridImage[x,y] > 16:
         resultImage[x,y] = 0
   
