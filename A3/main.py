@@ -77,7 +77,6 @@ def compute():
     smoothImage = np.zeros( (height,width), dtype=np.float_ )
 
   smooth( image, smoothImage )
-  
   print 'finding gradients'
 
   if gradientMags is None:
@@ -126,6 +125,7 @@ def compute():
 # 'smoothedImage'.
 #
 # [1 mark]
+
 def smooth( image, smoothedImage ):
 
   height = image.shape[0]
@@ -141,30 +141,31 @@ def smooth( image, smoothedImage ):
   # Assume all points outside the boundary are 0
   kernelHeight = kernel.shape[0]
   kernelWidth  = kernel.shape[1]
-  
+
   for y in range(0, height):
     for x in range(0, width):
-	  sum = 0
-	  
-	  for yKernel in range(0, kernelHeight):
-	    for xKernel in range(0, kernelWidth):
-		  # Compute offsets
-		  xOffset = xKernel - 2 
-		  yOffset = yKernel - 2
-		  
-		  # Compute position in original image
-		  imageX = x - xOffset
-		  imageY = y - yOffset
-		  
-		  if(imageX < 0 || imageY < 0):
-		    # Filter values outside of image bounds
-		    continue
-		  else:
-		    # Calculate magnitude 
-		    sum += image[x,y] * kernel[xKernel,yKernel]
-		  
-    smoothedImage[x,y] = sum		  
+      sum = 0
+      xOffset = -2
+      yOffset = -2
       
+      for yKernel in range(0, kernelHeight):
+        for xKernel in range(0, kernelWidth):      
+          # Compute position in original image
+          imageX = x + xOffset
+          imageY = y + yOffset
+      
+          if(imageX < 0 or imageY < 0 or imageX >= width or imageY >= height):
+            # Filter values outside of image bounds
+            continue
+          else:
+            # Calculate magnitude 
+            sum += image[imageY,imageX] * kernel[xKernel,yKernel]
+            # print sum
+          xOffset += 1
+        xOffset = -2
+        yOffset += 1
+      smoothedImage[y,x] = sum		  
+      # print smoothedImage
 # Compute the image's gradient magnitudes and directions
 #
 # The directions are in the range [0,7], where 0 is to the right, 2 is
@@ -175,14 +176,51 @@ def smooth( image, smoothedImage ):
 #
 # 1 of the two marks is for a *good* (i.e. simple, one-line)
 # calculation of direction.
+
 def findGradients( image, gradientMags, gradientDirs ):
 
+  print image
   height = image.shape[0]
   width  = image.shape[1]
 
   # YOUR CODE HERE
+  kernelx = np.array([[ -1, 0, 1 ],
+                      [ -2, 0, 2 ],
+                      [ -1, 0, 1]] )
+  kernely = np.array([[ 1,   2,  1 ],
+                      [ 0,   0,  0 ],
+                      [ -1, -2, -1]] )
+  radius = int(math.floor(kernelx.shape[0]/2))
+  print radius
+  print width, height
+  Gx = 0
+  Gy = 0
 
-  
+  for idx in range (0, width * height):
+    #find x and y coordinates of each pixel (c for centre of filter)
+    cx = (idx % width)
+    cy = int(np.floor(idx*1.0/width))
+    
+    for y in range(0-radius,radius+1):
+      for x in range(0-radius,radius+1):
+        # Find x,y coordinates of surrounding pixels within radius 
+        filterx = cx+x
+        filtery = cy+y
+
+        # If filter is inside bounds of image (edge case)
+        if filterx > 0 and filtery > 0 and filterx < width-1 and filtery < height-1:
+          
+          Gx += kernelx[x,y] * image[filtery,filterx]
+          Gy += kernely[x,y] * image[filtery,filterx]
+
+    # print Gx, Gy
+    #Might need to be in a loop
+    gradientMags[cy, cx] = np.sqrt ( np.square(Gx) + np.square(Gy) )
+    gradientDirs[cy, cx] = np.arctan2 ( np.absolute(Gy), np.absolute(Gx) )
+  print gradientMags
+  print gradientDirs
+
+  #Give directions from 0 to 7 but can leave as floats
 
 # Suppress the non-maxima in the gradient directions
 #
@@ -201,8 +239,50 @@ def suppressNonMaxima( magnitude, gradientDirs, maximaImage ):
   width  = magnitude.shape[1]
 
   # YOUR CODE HERE 
+  
+  # Round each angle to the nearest 45 degrees (nearest int in this case)    
+  for y in range(0,height):
+    for x in range(0,width):
+      angle = gradientDirs[y,x]
+      normalizedAngle = angle / 45
     
+      if(normalizedAngle < 0):
+      # angle is negative, convert to positive
+        normalizedAngle *= -1
+        normalizedAngle + 4
 
+      gradientDirs[y,x] = normalizedAngle
+
+  # Round to nearest integer
+  np.rint(gradientDirs)
+  
+  for y in range(0,height):
+    for x in range(0,width):
+      angle = int(gradientDirs[y,x])
+
+      if(angle >= 0 and angle < 8):
+        if(angle >= 4):
+          oppositeAngle = angle - 4
+        else:
+          oppositeAngle = angle + 4
+      else:
+        continue
+
+      max = 0
+      relativePosX = x + offset[angle][0]
+      relativePosY = y + offset[angle][1]
+      relativeNegX = x + offset[oppositeAngle][0]
+      relativeNegY = y + offset[oppositeAngle][1]
+
+      if( (relativePosX < 0 or relativePosY < 0 or relativeNegX > width or relativeNegY > height) and (relativeNegX < 0 or relativeNegY < 0 or relativeNegX > width or relativeNegY > height) ):
+        currentPixel  = magnitude[y,x]
+        positivePixel = magnitude[relativePosY,relativePosX]
+        negativePixel = magnitude[relativeNegY,relativeNegX]
+      else:
+        continue
+
+      if(currentPixel < positivePixel or currentPixel < negativePixel):
+        magnitude[y,x] = 0
 
 
 # Apply double thresholding
@@ -218,6 +298,15 @@ def doubleThreshold( maximaImage, thresholdImage ):
   width  = maximaImage.shape[1]
 
   # YOUR CODE HERE  
+  for y in range(height):
+    for x in range(width):
+      if maximaImage[y,x] < lowerThreshold:
+        thresholdImage[y,x] = 0
+      elif maximaImage[y,x] > upperThreshold:
+        thresholdImage[y,x] = 255
+      else:
+        thresholdImage[y,x] = 128
+
 
 
 
@@ -244,6 +333,7 @@ def trackEdges( thresholdImage, edgePixels ):
   offsets = [ (1,0), (1,1), (0,1), (-1,1), (-1,0), (-1,-1), (0,-1), (1,-1) ]
 
   # YOUR CODE HERE
+  print offsets[1][1]
 
 
     
