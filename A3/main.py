@@ -77,6 +77,7 @@ def compute():
     smoothImage = np.zeros( (height,width), dtype=np.float_ )
 
   smooth( image, smoothImage )
+  
   print 'finding gradients'
 
   if gradientMags is None:
@@ -118,14 +119,12 @@ def compute():
 
   return edgePixels
 
-
 # Smooth image
 #
 # Apply the 5x5 filter (below) to 'image' and store the result in
 # 'smoothedImage'.
 #
 # [1 mark]
-
 def smooth( image, smoothedImage ):
 
   height = image.shape[0]
@@ -138,14 +137,14 @@ def smooth( image, smoothedImage ):
                                   [1,  4,  7,  4, 1]] )
 
   # YOUR CODE HERE
-  # Assume all points outside the boundary are 0
   kernelHeight = kernel.shape[0]
   kernelWidth  = kernel.shape[1]
 
   for y in range(0, height):
     for x in range(0, width):
       sum = 0
-      xOffset = -2
+      # Initial filter offsets, top left point in filter is (x-2, y-2)
+      xOffset = -2 
       yOffset = -2
       
       for yKernel in range(0, kernelHeight):
@@ -154,18 +153,18 @@ def smooth( image, smoothedImage ):
           imageX = x + xOffset
           imageY = y + yOffset
       
-          if(imageX < 0 or imageY < 0 or imageX >= width or imageY >= height):
-            # Filter values outside of image bounds
-            continue
-          else:
-            # Calculate magnitude 
+          if(imageX > 0 and imageY > 0 and imageX < width and imageY < height):
+            # Calculate sum 
             sum += image[imageY,imageX] * kernel[xKernel,yKernel]
-            # print sum
-          xOffset += 1
-        xOffset = -2
-        yOffset += 1
-      smoothedImage[y,x] = sum		  
-      # print smoothedImage
+          else:
+            # All points outside the boundary are equal to the edge pixel
+            sum += image[y,x] * kernel[xKernel,yKernel]
+            
+          xOffset += 1 # Update x offset
+        xOffset = -2 # Reset x offset for new row
+        yOffset += 1 # Update y offset for new row
+      smoothedImage[y,x] = sum # Set new smoothed pixel value
+
 # Compute the image's gradient magnitudes and directions
 #
 # The directions are in the range [0,7], where 0 is to the right, 2 is
@@ -176,10 +175,8 @@ def smooth( image, smoothedImage ):
 #
 # 1 of the two marks is for a *good* (i.e. simple, one-line)
 # calculation of direction.
-
 def findGradients( image, gradientMags, gradientDirs ):
 
-  print image
   height = image.shape[0]
   width  = image.shape[1]
 
@@ -190,17 +187,17 @@ def findGradients( image, gradientMags, gradientDirs ):
   kernely = np.array([[ 1,   2,  1 ],
                       [ 0,   0,  0 ],
                       [ -1, -2, -1]] )
-  radius = int(math.floor(kernelx.shape[0]/2))
-  print radius
-  print width, height
+                      
+  radius = int( math.floor(kernelx.shape[0]/2) )
   
-
   for idx in range (0, width * height):
+    # Find x and y coordinates of each pixel (c for centre of filter)
+    cx = (idx % width)
+    cy = int( np.floor(idx*1.0/width) )
+    
+    # Initialize both gradients to 0
     Gx = 0
     Gy = 0
-    #find x and y coordinates of each pixel (c for centre of filter)
-    cx = (idx % width)
-    cy = int(np.floor(idx*1.0/width))
     
     for y in range(0-radius,radius+1):
       for x in range(0-radius,radius+1):
@@ -208,25 +205,27 @@ def findGradients( image, gradientMags, gradientDirs ):
         filterx = cx+x
         filtery = cy+y
 
-        # If filter is inside bounds of image (edge case)
-        if filterx > 0 and filtery > 0 and filterx < width-1 and filtery < height-1:
-          
+        # If filter is inside bounds of image
+        if (filterx > 0 and filtery > 0 and filterx < width and filtery < height):
           Gx += kernelx[x,y] * image[filtery,filterx]
           Gy += kernely[x,y] * image[filtery,filterx]
+        else:
+          # Use centre pixel value for outside of bounds
+          Gx += kernelx[x,y] * image[cy,cx]
+          Gy += kernely[x,y] * image[cy,cx]
 
-    # print Gx, Gy
-    #Might need to be in a loop
-    gradientMags[cy, cx] = np.sqrt ( np.square(Gx) + np.square(Gy) )
-    gradientDirs[cy, cx] = np.degrees(np.arctan2 ( np.absolute(Gy), np.absolute(Gx) ))
+    # Calculate magnitude and direction
+    gradientMags[cy,cx] = np.sqrt ( np.square(Gx) + np.square(Gy) )
+    gradientDirs[cy,cx] = np.degrees( np.arctan2( np.absolute(Gy), np.absolute(Gx) ) )
 
-  # Round each angle to the nearest 45 degrees (nearest int in this case)    
+  # Round each angle to the nearest int (each int is 45 degrees)
   for y in range(0,height):
     for x in range(0,width):
       angle = gradientDirs[y,x]
       normalizedAngle = angle / 45
     
+      # In case we get a negative angle, convert to positive
       if(normalizedAngle < 0):
-      # angle is negative, convert to positive
         normalizedAngle *= -1
         normalizedAngle + 4
 
@@ -234,10 +233,6 @@ def findGradients( image, gradientMags, gradientDirs ):
 
   # Round to nearest integer
   gradientDirs = np.rint(gradientDirs)
-  print gradientMags
-  print gradientDirs
-
-  #Give directions from 0 to 7 but can leave as floats
 
 # Suppress the non-maxima in the gradient directions
 #
@@ -245,49 +240,56 @@ def findGradients( image, gradientMags, gradientDirs ):
 # gradient in [0,7].  Do not use a big if-then-else.
 #
 # [1 mark]
-
 def suppressNonMaxima( magnitude, gradientDirs, maximaImage ):
 
-  # gradient offsets for each gradient direction in [0,7]
-
+  # Gradient offsets for each gradient direction in [0,7]
   offset = [ (1,0),(1,1),(0,1),(-1,1),(-1,0),(-1,-1),(0,-1),(1,-1) ]
 
   height = magnitude.shape[0]
   width  = magnitude.shape[1]
 
   # YOUR CODE HERE 
-  
-  
-  
   for y in range(0,height):
     for x in range(0,width):
-      angle = int(gradientDirs[y,x])
-      if(angle >= 0 and angle < 8):
-        if(angle >= 4):
+      angle = int( gradientDirs[y,x] )
+      
+      # Get angle 180 degrees (4 int) from gradient direction
+      if (angle >= 0 and angle < 8):
+        if (angle >= 4):
           oppositeAngle = angle - 4
         else:
           oppositeAngle = angle + 4
       else:
+        # Else we can't use this value (shouldn't get here)
         continue
 
-      max = 0
+      # Use angle and oppositeAngle as input to the offset array
+      # ex) angle 0 will have opposite angle 4, so we will use the offsets given 
+      # at offset[0] and offset[4] (it is a tuple so will containt offsets for x and y)
       relativePosX = x + offset[angle][1]
       relativePosY = y + offset[angle][0]
       relativeNegX = x + offset[oppositeAngle][1]
       relativeNegY = y + offset[oppositeAngle][0]
 
-      if( (relativePosX > 0 and relativePosY > 0 and relativePosX < width and relativePosY < height) and (relativeNegX > 0 and relativeNegY > 0 and relativeNegX < width and relativeNegY < height) ):
-        currentPixel  = magnitude[y,x]
+      # Initalize values to be compared
+      currentPixel  = magnitude[y,x]
+      positivePixel = 0
+      negativePixel = 0
+      
+      # Check against image bounds
+      if (relativePosX > 0 and relativePosY > 0 and relativePosX < width and relativePosY < height):
         positivePixel = magnitude[relativePosY,relativePosX]
+      
+      # Check against image bounds
+      if (relativeNegX > 0 and relativeNegY > 0 and relativeNegX < width and relativeNegY < height):
         negativePixel = magnitude[relativeNegY,relativeNegX]
-      else:
-        continue
 
-      if(currentPixel < positivePixel or currentPixel < negativePixel):
+      # Compare gradient values
+      if (currentPixel < positivePixel or currentPixel < negativePixel):
+        # Suppress non-maxima, equality == keep both
         maximaImage[y,x] = 0
       else:
         maximaImage[y,x] = currentPixel
-
 
 # Apply double thresholding
 #
@@ -295,7 +297,6 @@ def suppressNonMaxima( magnitude, gradientDirs, maximaImage ):
 # 255, and all other pixels to 128.
 #
 # [1 mark]
-
 def doubleThreshold( maximaImage, thresholdImage ):
 
   height = maximaImage.shape[0]
@@ -304,15 +305,12 @@ def doubleThreshold( maximaImage, thresholdImage ):
   # YOUR CODE HERE  
   for y in range(height):
     for x in range(width):
-      if maximaImage[y,x] < lowerThreshold:
+      if (maximaImage[y,x] < lowerThreshold):
         thresholdImage[y,x] = 0
-      elif maximaImage[y,x] > upperThreshold:
+      elif (maximaImage[y,x] > upperThreshold):
         thresholdImage[y,x] = 255
       else:
         thresholdImage[y,x] = 128
-
-
-
 
 # Attach weak pixels to strong pixels
 #
@@ -326,7 +324,6 @@ def doubleThreshold( maximaImage, thresholdImage ):
 # [2 marks]
 #
 # 1 of the two marks is for an *efficient* implementation.
-
 def trackEdges( thresholdImage, edgePixels ):
 
   height = thresholdImage.shape[0]
@@ -336,50 +333,53 @@ def trackEdges( thresholdImage, edgePixels ):
 
   offsets = [ (1,0), (1,1), (0,1), (-1,1), (-1,0), (-1,-1), (0,-1), (1,-1) ]
 
-
   # YOUR CODE HERE
-
   strongPixelList = []
   newThresholdImage = np.copy(thresholdImage)
 
+  # Get coordinates of all strong pixels
   for y in range(height):
     for x in range(width):
-      if thresholdImage[y,x] == 255:
-        strongPixelList.append((x,y))
+      if (thresholdImage[y,x] == 255):
+        strongPixelList.append( (x,y) )
   
-  for idx in range(len(strongPixelList)):
+  # Iterate through each strong pixel and append any new weak pixels that have been converted to strong pixels
+  for idx in range( len(strongPixelList) ):
     strongPixelList = recursiveIfWeak(newThresholdImage, strongPixelList[idx], strongPixelList)
 
-  # print strongPixelList
-
-  for idx in range(len(strongPixelList)):
-      i = strongPixelList[idx][0]
-      j = strongPixelList[idx][1]
-      edgePixels[j][i] = 255
-  # print edgePixels
+  # Set edgePixel array values based on strongPixelList
+  for idx in range( len(strongPixelList) ):
+    i = strongPixelList[idx][0]
+    j = strongPixelList[idx][1]
+    edgePixels[j][i] = 255
 
 
 def recursiveIfWeak(newThresholdImage, strongPixel, strongPixelList):
   height = newThresholdImage.shape[0]
   width  = newThresholdImage.shape[1]
-  radius = 1
+  radius = 1 # Radius of 
   cx = strongPixel[0]
   cy = strongPixel[1]
 
   # Iterate through neighbouring pixels (radius = 1)
   for y in range(0-radius,radius+1):
     for x in range(0-radius,radius+1):
+      # (0,0) is the original strong pixel
+      # Don't need to add this because it will be filtered later 
+      # as the intensity != 128, just for clarity
+      if (x == 0 and y == 0):
+        continue
+       
       # Find x,y coordinates of surrounding pixels within radius 
-      filterx = cx+x
-      filtery = cy+y
+      filterx = cx + x
+      filtery = cy + y
 
-      # If filter is inside bounds of image (edge case)
-      if filterx > 0 and filtery > 0 and filterx < width-1 and filtery < height-1:
-        #If neighbouring pixel is weak, set to strong
-        if newThresholdImage[filtery,filterx] == 128:
-          newThresholdImage[filtery,filterx] = 255
-          strongPixelList.append((filterx,filtery))
-          recursiveIfWeak(newThresholdImage, [filtery,filterx],strongPixelList)
+      if (filterx > 0 and filtery > 0 and filterx < width and filtery < height):
+        # If neighbouring pixel is weak
+        if (newThresholdImage[filtery,filterx] == 128):
+          newThresholdImage[filtery,filterx] = 255                              # Set to strong
+          strongPixelList.append( (filterx,filtery) )                           # Append coordinates
+          recursiveIfWeak(newThresholdImage, [filtery,filterx],strongPixelList) # Continue recursion
   return strongPixelList
 
 # File dialog
