@@ -357,7 +357,7 @@ def trackEdges( thresholdImage, edgePixels ):
 def recursiveIfWeak(newThresholdImage, strongPixel, strongPixelList):
   height = newThresholdImage.shape[0]
   width  = newThresholdImage.shape[1]
-  radius = 1 # Radius of 
+  radius = 1 
   cx = strongPixel[0]
   cy = strongPixel[1]
 
