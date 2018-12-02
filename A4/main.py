@@ -31,7 +31,7 @@ def compress( inputFile, outputFile ):
   y_range = img.shape[0]
   x_range = img.shape[1]
   
-  if img.shape > 1:
+  if img.shape > 2:
     channel = img.shape[2]
   else:
     channel = 1
