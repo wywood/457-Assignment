@@ -10,23 +10,15 @@
 #
 #   python netpbm.py images/cortex.pnm
 
-
 import sys, os, math, time, netpbm
 import numpy as np
 
-
 # Text at the beginning of the compressed file, to identify it
-
-
 headerText = 'my compressed image - v1.0'
-
-
+dictionary = dict()
 
 # Compress an image
-
-
 def compress( inputFile, outputFile ):
-
   # Read the input file into a numpy array of 8-bit values
   #
   # The img.shape is a 3-type with rows,columns,channels, where
@@ -35,6 +27,16 @@ def compress( inputFile, outputFile ):
   # integer.
 
   img = netpbm.imread( inputFile ).astype('uint8')
+  
+  y_range = img.shape[0]
+  x_range = img.shape[1]
+  
+  if img.shape > 1:
+    channel = img.shape[2]
+  else:
+    channel = 1
+    
+  init_dictionary()
   
   # Compress the image
   #
@@ -93,13 +95,9 @@ def compress( inputFile, outputFile ):
   sys.stderr.write( 'Output size:        %d bytes\n' % outSize )
   sys.stderr.write( 'Compression factor: %.2f\n' % (inSize/float(outSize)) )
   sys.stderr.write( 'Compression time:   %.2f seconds\n' % (endTime - startTime) )
-  
-
 
 # Uncompress an image
-
 def uncompress( inputFile, outputFile ):
-
   # Check that it's a known file
 
   if inputFile.readline() != headerText + '\n':
@@ -136,9 +134,29 @@ def uncompress( inputFile, outputFile ):
 
   sys.stderr.write( 'Uncompression time: %.2f seconds\n' % (endTime - startTime) )
 
-  
+# Detect if sequence exists in dictionary
+def in_dictionary( seq ):
+  seq_exists = False
 
+  for y in range( len(dictionary) ):
+    dict_seq = dictionary[y]
+    seq_exists = True
+    
+    for x in range( dict_seq.shape[1] ):
+      if seq[x] != dict_seq[x]:
+        seq_exists = False
+      
+    if seq_exists == True:
+      break
   
+  return seq_exists
+
+def init_dictionary():
+  # Init dictionary with values -255 to 255, indexed with 0-511
+  for i in range(0,511):
+      value = [i-256]
+      dictionary[i] = value
+
 # The command line is 
 #
 #   main.py {flag} {input image filename} {output image filename}
