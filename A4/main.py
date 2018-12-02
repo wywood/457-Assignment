@@ -31,10 +31,12 @@ def compress( inputFile, outputFile ):
   y_range = img.shape[0]
   x_range = img.shape[1]
   
-  if img.shape > 2:
-    channel = img.shape[2]
+  if len(img.shape) > 2:
+    numChannels = img.shape[2]
   else:
-    channel = 1
+    numChannels = 1
+
+  numChannels = 1
     
   init_dictionary()
   
@@ -50,30 +52,63 @@ def compress( inputFile, outputFile ):
   # one piece for the single-channel case and one piece for the
   # multi-channel case.
 
-  print img.shape
-  # (684:, 956L, 3L)
-
-  print img[0,0,0]
-  print img[400,400,1]
-
-  yRange = img.shape[0]
-  xRange = img.shape[1]
-  numChannels = img.shape[2]
   w1 = 0.3333
   w2 = 0.3333
   w3 = 0.3333
 
   startTime = time.time()
- 
+
+  subsequence = [img[0,0,0]]
   outputBytes = bytearray()
+  temp = []
 
-  for y in range(img.shape[0]):
-    for x in range(img.shape[1]):
-      for c in range(img.shape[2]):
-        delta = (img[y,x,c] - (w1 * img[y-1,x-1,c] + w2 * img[y-1,x,c] + w3 * img[y,x-1,c]))
-        outputBytes.append(np.uint8(delta))
+  dictionary[len(dictionary)] = [23,21,1]
+  print in_dictionary([23,21,1])
 
-  print outputBytes
+  for c in range(numChannels):
+    for y in range(y_range):
+      for x in range(x_range):
+        if (x+1 >= x_range):
+          nextPixel = img[y+1,0,c]
+        else:
+          nextPixel = img[y,x+1,c]
+        
+
+        temp = subsequence
+        temp.append(nextPixel)
+        # temp = subsequence + nextPixel
+        # print "temp:", temp
+        if (in_dictionary(temp) != -1):
+          # print "In dict:", nextPixel
+          subsequence.append(nextPixel)
+        else:
+          # outputBytes.append(dictionary.keys(subsequence))
+          dictionary[len(dictionary)] = temp
+          # print "temp:", temp
+          subsequence = [nextPixel]
+          # print "seq:", subsequence
+
+        # print type(temp)
+        # if temp in dictionary:
+        #   subsequence = appendNum(subsequence,nextPixel)
+        # else:
+        #   outputBytes.append(dictionary.keys(subsequence))
+        #   dictionary.append(temp)
+        #   subsequence = nextPixel
+
+        # for i in range (512,len(dictionary)):
+        #   print dictionary[i]
+
+        # print ""
+  
+
+  # for y in range(img.shape[0]):
+  #   for x in range(img.shape[1]):
+  #     for c in range(numChannels):
+  #       delta = (img[y,x,c] - (w1 * img[y-1,x-1,c] + w2 * img[y-1,x,c] + w3 * img[y,x-1,c]))
+  #       outputBytes.append(np.uint8(delta))
+
+  # print outputBytes
   endTime = time.time()
 
   # Output the bytes
@@ -136,25 +171,34 @@ def uncompress( inputFile, outputFile ):
 
 # Detect if sequence exists in dictionary
 def in_dictionary( seq ):
-  seq_exists = False
+  idx = -1
+  # print seq
 
-  for y in range( len(dictionary) ):
-    dict_seq = dictionary[y]
-    seq_exists = True
+  for i in range( len(dictionary) ):
+    idx = -1
+    dict_seq = dictionary[i]
     
-    for x in range( dict_seq.shape[1] ):
-      if seq[x] != dict_seq[x]:
-        seq_exists = False
+  #   if dict_seq == seq:
+  #     idx = i
+    if len(dict_seq) <= 0 or len(seq) <= 0 or len(dict_seq) != len(seq):
+      continue
+
+    for x in range( len(dict_seq) ):
+      if x <= len(seq) and seq[x] == dict_seq[x]:
+        idx = i
+      else:
+        idx = -1
+        break
       
-    if seq_exists == True:
+    if idx != -1:
       break
   
-  return seq_exists
+  return idx
 
 def init_dictionary():
   # Init dictionary with values -255 to 255, indexed with 0-511
-  for i in range(0,511):
-      value = [i-256]
+  for i in range(0,512):
+      value = [i-256] #[] may not be right
       dictionary[i] = value
 
 # The command line is 
