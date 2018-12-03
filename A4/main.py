@@ -15,10 +15,10 @@ import numpy as np
 
 # Text at the beginning of the compressed file, to identify it
 headerText = 'my compressed image - v1.0'
-dictionary = dict()
-start_2D = 513
-start_3D = -1
-skip_first = True
+dictionary = dict() # Dictionary containing Key, List pairs
+sorted_list = [] # Sorted dictionary
+w1 = 0.333333 
+w2 = 0.5
 
 # Compress an image
 def compress( inputFile, outputFile ):
@@ -38,10 +38,12 @@ def compress( inputFile, outputFile ):
     numChannels = img.shape[2]
   else:
     numChannels = 1
-
-  numChannels = 1
     
-  init_dictionary()
+  init_dictionary() # Initialize dictionary values (-256 -> 255)
+
+  # Sort dictionary
+  global sorted_list
+  sorted_list = sorted(dictionary.items(), key= lambda e: e[1][0])
   
   # Compress the image
   #
@@ -55,28 +57,21 @@ def compress( inputFile, outputFile ):
   # one piece for the single-channel case and one piece for the
   # multi-channel case.
 
-  w1 = 0.333333
-  w2 = 0.5
-
   startTime = time.time()
 
   outputBytes = bytearray(0)
   S = []
   temp = []
-  last_idx = -1
   curr_idx = -1
 
   for c in range(numChannels):
     for y in range(y_range):
-      startTime = time.time()
+      startTime = time.time() # TODO MOVE
       for x in range(x_range):
         if x == 0:
-            print y
-        #if (x+1) >= x_range:
-        #  X = img[y+1,0,c]
-        #else:
-        #  X = img[y,x+1,c]
+            print y # TODO remove
         
+        # Calculate error of predicted from actual
         if y-1 >= 0 and x-1 >= 0:
             err = img[y,x,c] - (w1 * img[y-1,x-1,c] + w1 * img[y-1,x,c] + w1 * img[y,x-1,c])
         elif x-1 >= 0:
@@ -84,63 +79,46 @@ def compress( inputFile, outputFile ):
         elif y-1 >= 0:
             err = img[y,x,c] - (w2 * img[y-1,x-1,c] + w2 * img[y-1,x,c])
         else:
-            err = img[y,x,c] # TODO???
-            print "Everything is out of bounds!"
+            # TODO???
+            continue
+            print "All prediction points are out of bounds!"
 
+        # Round to int value
         X = int(err)
 
         temp = list(S)
         temp.append(X)
 
         curr_idx = in_dictionary(temp)
-        #print ('idx: %d' % curr_idx)
-        #print "S: "
-        #print S
-        #print "temp: "
-        #print temp
-        #print ""
 
         if (curr_idx != -1):
-          last_idx = curr_idx
+          # If in dictionary
           S = list(temp)
-          #print "newS: "
-          #print S
-          #print ""
         else:
+          # If not in dictionary
           append = in_dictionary(S)
 
-          global start_3D
-          if len(S) >= 3 and not skip_first:
-            print "hey"
-            start_3D = len(dictionary)
-          #print S
-          #print temp
-          #print ('append: %d' % append)
-          #print ""
           if append != -1:
+            # Split into upper and lower 8 bits
             if append < 256:
-                outputBytes.append( 0 ) # Append all zeros for the upper 8 bits 
+                outputBytes.append( 0 ) # Append zeros for the upper 8 bits
                 outputBytes.append( append ) # Lower 8 bits
             else:
-                outputBytes.append(append >> 8)
-                outputBytes.append(255)
+                outputBytes.append(append >> 8) # Upper 8 bits
+                outputBytes.append(append % 256) # Lower 8 bits
+            
             dictionary[len(dictionary)] = list(temp)
             S = [X]
           else:
+            # TODO
             print "Couldn't find index"
-            print S
-            dictionary[len(dictionary)] = list(S) # TODO
+            dictionary[len(dictionary)] = list(S)
             S = [X]
-          print dictionary
-          print ""
-          global dictionary
-          sorted_list = sorted(dictionary.items(), key= lambda e: e[1][0])
-          print sorted_list
-          print ""
-          print ""
-      endTime = time.time()
 
-      print endTime-startTime
+          # Sort list based on new addition
+          global sorted_list
+          sorted_list = sorted(dictionary.items(), key= lambda e: e[1][0])
+      endTime = time.time() # TODO MOVE
 
   print np.uint8(outputBytes)
   endTime = time.time()
@@ -150,13 +128,11 @@ def compress( inputFile, outputFile ):
   # Include the 'headerText' to identify the type of file.  Include
   # the rows, columns, channels so that the image shape can be
   # reconstructed.
-
   outputFile.write( '%s\n'       % headerText )
   outputFile.write( '%d %d %d\n' % (img.shape[0], img.shape[1], img.shape[2]) )
   outputFile.write( outputBytes )
 
   # Print information about the compression
-  
   inSize  = img.shape[0] * img.shape[1] * img.shape[2]
   outSize = len(outputBytes)
 
@@ -205,33 +181,102 @@ def uncompress( inputFile, outputFile ):
 
 # Detect if sequence exists in dictionary
 def in_dictionary( seq ):
-  idx = -1
+  #global skip_first
+#
+#  if len(seq) == 1:
+#    start = 0
+##  elif len(seq) > 1:
+#    start = start_2D
 
-  global skip_first
+#  for i in range( start, len(dictionary) ):
+#    idx = -1
+#    dict_seq = dictionary[i]
 
-  if len(seq) == 1:
-    start = 0
-  elif len(seq) > 1:
-    start = start_2D
+    #if len(dict_seq) <= 0 or len(seq) <= 0 or len(dict_seq) != len(seq):
+     # continue
 
-  for i in range( start, len(dictionary) ):
-    idx = -1
-    dict_seq = dictionary[i]
-
-    if len(dict_seq) <= 0 or len(seq) <= 0 or len(dict_seq) != len(seq):
-      continue
-
-    for x in range( len(dict_seq) ):
-      if x <= len(seq) and seq[x] == dict_seq[x]:
-        idx = i
-      else:
-        idx = -1
-        break
-      
-    if idx != -1:
-      break
+    #for x in range( len(dict_seq) ):
+    #  if x <= len(seq) and seq[x] == dict_seq[x]:
+    #    idx = i
+    ###  else:
+    #    idx = -1
+    #    break
+    #  
+    #if idx != -1:
+    #  break
   
-  return idx
+  #return idx
+  x = seq[0]
+  idx = bin_search(0, len(sorted_list)-1, x) # Find starting place for linear search
+
+  print ('start idx: %d' % idx)
+  print seq
+
+  if idx != -1:
+    # While the first value is still the one we are searching for
+    while sorted_list[idx][1][0] == x:
+        dict_seq = sorted_list[idx][1] # Get list corresponding to this key
+        candidate_idx = idx 
+
+        if len(dict_seq) <= 0 or len(seq) <= 0 or len(dict_seq) != len(seq):
+            # Sequences are incompatible, skip this
+            idx += 1
+            candidate_idx = -1
+            continue
+
+        for i in range( len(dict_seq) ):
+            # Compare lists for equality
+            if seq[i] != dict_seq[i]:
+                candidate_idx = -1
+                break
+
+        if candidate_idx == -1:
+            idx += 1
+        else:
+            break
+
+    if candidate_idx == -1:
+        print -1
+        return -1
+    else:
+        print "Found in dictionary."
+        return sorted_list[idx][0]
+  else:
+    for i in range(len(sorted_list) ):
+        idx = -1
+        dict_seq = sorted_list[i][1]
+        
+        if len(dict_seq) <= 0 or len(seq) <= 0 or len(dict_seq) != len(seq):
+            continue
+
+        for x in range( len(dict_seq) ):
+            if x <= len(seq) and seq[x] == dict_seq[x]:
+                idx = i
+            else:
+                idx = -1
+                break
+    
+        if idx != -1:
+          break
+  
+    print idx
+    return idx
+
+def bin_search(l, r, x):
+
+    while l < r:
+        mid = (l + r) // 2
+        compare = sorted_list[mid][1][0]
+    
+        if compare < x:
+            l = mid + 1
+        elif x < compare:
+            r = mid - 1
+        else:
+            return mid
+    
+    print "Couldn't find start index."
+    return -1
 
 def init_dictionary():
   # Init dictionary with values -255 to 255, indexed with 0-511
