@@ -16,6 +16,9 @@ import numpy as np
 # Text at the beginning of the compressed file, to identify it
 headerText = 'my compressed image - v1.0'
 dictionary = dict()
+start_2D = 513
+start_3D = -1
+skip_first = True
 
 # Compress an image
 def compress( inputFile, outputFile ):
@@ -52,63 +55,94 @@ def compress( inputFile, outputFile ):
   # one piece for the single-channel case and one piece for the
   # multi-channel case.
 
-  w1 = 0.3333
-  w2 = 0.3333
-  w3 = 0.3333
+  w1 = 0.333333
+  w2 = 0.5
 
   startTime = time.time()
 
-  subsequence = [img[0,0,0]]
-  outputBytes = bytearray()
+  outputBytes = bytearray(0)
+  S = []
   temp = []
-
-  dictionary[len(dictionary)] = [23,21,1]
-  print in_dictionary([23,21,1])
+  last_idx = -1
+  curr_idx = -1
 
   for c in range(numChannels):
     for y in range(y_range):
+      startTime = time.time()
       for x in range(x_range):
-        if (x+1 >= x_range):
-          nextPixel = img[y+1,0,c]
-        else:
-          nextPixel = img[y,x+1,c]
+        if x == 0:
+            print y
+        #if (x+1) >= x_range:
+        #  X = img[y+1,0,c]
+        #else:
+        #  X = img[y,x+1,c]
         
-
-        temp = subsequence
-        temp.append(nextPixel)
-        # temp = subsequence + nextPixel
-        # print "temp:", temp
-        if (in_dictionary(temp) != -1):
-          # print "In dict:", nextPixel
-          subsequence.append(nextPixel)
+        if y-1 >= 0 and x-1 >= 0:
+            err = img[y,x,c] - (w1 * img[y-1,x-1,c] + w1 * img[y-1,x,c] + w1 * img[y,x-1,c])
+        elif x-1 >= 0:
+            err = img[y,x,c] - img[y,x-1,c]
+        elif y-1 >= 0:
+            err = img[y,x,c] - (w2 * img[y-1,x-1,c] + w2 * img[y-1,x,c])
         else:
-          # outputBytes.append(dictionary.keys(subsequence))
-          dictionary[len(dictionary)] = temp
-          # print "temp:", temp
-          subsequence = [nextPixel]
-          # print "seq:", subsequence
+            err = img[y,x,c] # TODO???
+            print "Everything is out of bounds!"
 
-        # print type(temp)
-        # if temp in dictionary:
-        #   subsequence = appendNum(subsequence,nextPixel)
-        # else:
-        #   outputBytes.append(dictionary.keys(subsequence))
-        #   dictionary.append(temp)
-        #   subsequence = nextPixel
+        X = int(err)
 
-        # for i in range (512,len(dictionary)):
-        #   print dictionary[i]
+        temp = list(S)
+        temp.append(X)
 
-        # print ""
-  
+        curr_idx = in_dictionary(temp)
+        #print ('idx: %d' % curr_idx)
+        #print "S: "
+        #print S
+        #print "temp: "
+        #print temp
+        #print ""
 
-  # for y in range(img.shape[0]):
-  #   for x in range(img.shape[1]):
-  #     for c in range(numChannels):
-  #       delta = (img[y,x,c] - (w1 * img[y-1,x-1,c] + w2 * img[y-1,x,c] + w3 * img[y,x-1,c]))
-  #       outputBytes.append(np.uint8(delta))
+        if (curr_idx != -1):
+          last_idx = curr_idx
+          S = list(temp)
+          #print "newS: "
+          #print S
+          #print ""
+        else:
+          append = in_dictionary(S)
 
-  # print outputBytes
+          global start_3D
+          if len(S) >= 3 and not skip_first:
+            print "hey"
+            start_3D = len(dictionary)
+          #print S
+          #print temp
+          #print ('append: %d' % append)
+          #print ""
+          if append != -1:
+            if append < 256:
+                outputBytes.append( 0 ) # Append all zeros for the upper 8 bits 
+                outputBytes.append( append ) # Lower 8 bits
+            else:
+                outputBytes.append(append >> 8)
+                outputBytes.append(255)
+            dictionary[len(dictionary)] = list(temp)
+            S = [X]
+          else:
+            print "Couldn't find index"
+            print S
+            dictionary[len(dictionary)] = list(S) # TODO
+            S = [X]
+          print dictionary
+          print ""
+          global dictionary
+          sorted_list = sorted(dictionary.items(), key= lambda e: e[1][0])
+          print sorted_list
+          print ""
+          print ""
+      endTime = time.time()
+
+      print endTime-startTime
+
+  print np.uint8(outputBytes)
   endTime = time.time()
 
   # Output the bytes
@@ -172,14 +206,18 @@ def uncompress( inputFile, outputFile ):
 # Detect if sequence exists in dictionary
 def in_dictionary( seq ):
   idx = -1
-  # print seq
 
-  for i in range( len(dictionary) ):
+  global skip_first
+
+  if len(seq) == 1:
+    start = 0
+  elif len(seq) > 1:
+    start = start_2D
+
+  for i in range( start, len(dictionary) ):
     idx = -1
     dict_seq = dictionary[i]
-    
-  #   if dict_seq == seq:
-  #     idx = i
+
     if len(dict_seq) <= 0 or len(seq) <= 0 or len(dict_seq) != len(seq):
       continue
 
@@ -197,9 +235,15 @@ def in_dictionary( seq ):
 
 def init_dictionary():
   # Init dictionary with values -255 to 255, indexed with 0-511
+  #for i in range(0,10):
+  #    value = [i-25]
+  #    dictionary[i] = value
   for i in range(0,512):
-      value = [i-256] #[] may not be right
-      dictionary[i] = value
+    value = [i-256]
+    dictionary[i] = value
+
+def take_first(seq):
+  return seq[0]
 
 # The command line is 
 #
