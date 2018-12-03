@@ -33,12 +33,15 @@ def compress( inputFile, outputFile ):
   
   y_range = img.shape[0]
   x_range = img.shape[1]
+  print x_range
+  print y_range
   
   if len(img.shape) > 2:
     numChannels = img.shape[2]
   else:
     numChannels = 1
     
+  numChannels = 1
   init_dictionary() # Initialize dictionary values (-256 -> 255)
 
   # Sort dictionary
@@ -57,7 +60,7 @@ def compress( inputFile, outputFile ):
   # one piece for the single-channel case and one piece for the
   # multi-channel case.
 
-  startTime = time.time()
+  #startTime = time.time()
 
   outputBytes = bytearray(0)
   S = []
@@ -66,11 +69,9 @@ def compress( inputFile, outputFile ):
 
   for c in range(numChannels):
     for y in range(y_range):
-      startTime = time.time() # TODO MOVE
+      #print "Length of dictionary", len(dictionary)
+      #ystartTime = time.time() # TODO MOVE
       for x in range(x_range):
-        if x == 0:
-            print y # TODO remove
-        
         # Calculate error of predicted from actual
         if y-1 >= 0 and x-1 >= 0:
             err = img[y,x,c] - (w1 * img[y-1,x-1,c] + w1 * img[y-1,x,c] + w1 * img[y,x-1,c])
@@ -80,11 +81,14 @@ def compress( inputFile, outputFile ):
             err = img[y,x,c] - (w2 * img[y-1,x-1,c] + w2 * img[y-1,x,c])
         else:
             # TODO???
-            continue
             print "All prediction points are out of bounds!"
+            continue
 
         # Round to int value
         X = int(err)
+
+        if X > 256:
+            print "The error value is too large"
 
         temp = list(S)
         temp.append(X)
@@ -108,19 +112,25 @@ def compress( inputFile, outputFile ):
                 outputBytes.append(append % 256) # Lower 8 bits
             
             dictionary[len(dictionary)] = list(temp)
-            S = [X]
-          else:
+          S = [X]
+          #print np.uint8(outputBytes)
+          #else:
             # TODO
-            print "Couldn't find index"
-            dictionary[len(dictionary)] = list(S)
-            S = [X]
+            #print "Couldn't find index"
+            #dictionary[len(dictionary)] = list(S)
+            #S = [X]
 
           # Sort list based on new addition
           global sorted_list
+          #sortstartTime = time.time()
           sorted_list = sorted(dictionary.items(), key= lambda e: e[1][0])
-      endTime = time.time() # TODO MOVE
+          #sortendTime = time.time()
+          #print "Sort time:", sortendTime-sortstartTime
+      #yendTime = time.time() # TODO MOVE
+      #print yendTime - ystartTime
 
   print np.uint8(outputBytes)
+  print "Length of dictionary", len(dictionary)
   endTime = time.time()
 
   # Output the bytes
@@ -181,90 +191,79 @@ def uncompress( inputFile, outputFile ):
 
 # Detect if sequence exists in dictionary
 def in_dictionary( seq ):
-  #global skip_first
-#
-#  if len(seq) == 1:
-#    start = 0
-##  elif len(seq) > 1:
-#    start = start_2D
-
-#  for i in range( start, len(dictionary) ):
-#    idx = -1
-#    dict_seq = dictionary[i]
-
-    #if len(dict_seq) <= 0 or len(seq) <= 0 or len(dict_seq) != len(seq):
-     # continue
-
-    #for x in range( len(dict_seq) ):
-    #  if x <= len(seq) and seq[x] == dict_seq[x]:
-    #    idx = i
-    ###  else:
-    #    idx = -1
-    #    break
-    #  
-    #if idx != -1:
-    #  break
-  
-  #return idx
-  x = seq[0]
+  x = seq[0] # Initial value for binary search to find
   idx = bin_search(0, len(sorted_list)-1, x) # Find starting place for linear search
 
-  print ('start idx: %d' % idx)
-  print seq
+  #print "Searching for", seq
 
   if idx != -1:
-    # While the first value is still the one we are searching for
+    # We were able to find a starting point for the linear search
     while sorted_list[idx][1][0] == x:
+        # While the first value is still the one we are searching for
         dict_seq = sorted_list[idx][1] # Get list corresponding to this key
-        candidate_idx = idx 
+        candidate_found = True
 
         if len(dict_seq) <= 0 or len(seq) <= 0 or len(dict_seq) != len(seq):
-            # Sequences are incompatible, skip this
-            idx += 1
-            candidate_idx = -1
-            continue
-
-        for i in range( len(dict_seq) ):
-            # Compare lists for equality
-            if seq[i] != dict_seq[i]:
-                candidate_idx = -1
+            # Sequences are incompatible, skip this index
+            if idx < len(sorted_list)-1:
+                idx += 1
+                candidate_found = False
+                continue
+            else:
                 break
 
-        if candidate_idx == -1:
-            idx += 1
+        # for i in range( len(dict_seq) ):
+        #     # Compare lists for equality
+        #     if seq[i] != dict_seq[i]:
+        #         candidate_found = False
+        #         break
+
+        if seq != dict_seq:
+            candidate_found = False
+
+        if not candidate_found:
+            # Go to next candidate sequence
+            if idx < len(sorted_list)-1:
+                idx += 1
+            else:
+                break
         else:
+            # We found the sequence in the dictionary
             break
 
-    if candidate_idx == -1:
-        print -1
+    if not candidate_found:
+        #print "Not found in dictionary."
+        #print ""
         return -1
     else:
-        print "Found in dictionary."
+        #print "Found in dictionary at position %d." % sorted_list[idx][0]
+        #print ""
         return sorted_list[idx][0]
-  else:
-    for i in range(len(sorted_list) ):
-        idx = -1
-        dict_seq = sorted_list[i][1]
+  #else:
+    #print "Starting linear search from beginning of list."
+#     # Do a linear search starting at index 0
+#     for i in range(len(sorted_list) ):
+#         idx = -1
+#         dict_seq = sorted_list[i][1]
         
-        if len(dict_seq) <= 0 or len(seq) <= 0 or len(dict_seq) != len(seq):
-            continue
+#         if len(dict_seq) <= 0 or len(seq) <= 0 or len(dict_seq) != len(seq):
+#             continue
 
-        for x in range( len(dict_seq) ):
-            if x <= len(seq) and seq[x] == dict_seq[x]:
-                idx = i
-            else:
-                idx = -1
-                break
+#         for x in range( len(dict_seq) ):
+#             if x <= len(seq) and seq[x] == dict_seq[x]:
+#                 idx = i
+#             else:
+#                 idx = -1
+#                 break
     
-        if idx != -1:
-          break
+#         if idx != -1:
+#           break
   
-    print idx
-    return idx
+#     print ""
+#     return idx
 
 def bin_search(l, r, x):
-
-    while l < r:
+    while l <= r:
         mid = (l + r) // 2
         compare = sorted_list[mid][1][0]
     
@@ -273,22 +272,18 @@ def bin_search(l, r, x):
         elif x < compare:
             r = mid - 1
         else:
+            #print "Found starting place for %d." % x
+            #print "Position %d in sorted_list." % mid
             return mid
     
-    print "Couldn't find start index."
+    #print "Couldn't find start index."
     return -1
 
 def init_dictionary():
   # Init dictionary with values -255 to 255, indexed with 0-511
-  #for i in range(0,10):
-  #    value = [i-25]
-  #    dictionary[i] = value
-  for i in range(0,512):
+  for i in range(0,514):
     value = [i-256]
     dictionary[i] = value
-
-def take_first(seq):
-  return seq[0]
 
 # The command line is 
 #
