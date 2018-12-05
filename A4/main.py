@@ -10,18 +10,23 @@
 #
 #   python netpbm.py images/cortex.pnm
 
+
 import sys, os, math, time, netpbm
 import numpy as np
 
+
 # Text at the beginning of the compressed file, to identify it
+
+
 headerText = 'my compressed image - v1.0'
-dictionary = dict() # Dictionary containing Key, List pairs
-sorted_list = [] # Sorted dictionary
-w1 = 0.333333 
-w2 = 0.5
+
+
 
 # Compress an image
+
+
 def compress( inputFile, outputFile ):
+
   # Read the input file into a numpy array of 8-bit values
   #
   # The img.shape is a 3-type with rows,columns,channels, where
@@ -30,23 +35,6 @@ def compress( inputFile, outputFile ):
   # integer.
 
   img = netpbm.imread( inputFile ).astype('uint8')
-  
-  y_range = img.shape[0]
-  x_range = img.shape[1]
-  print x_range
-  print y_range
-  
-  if len(img.shape) > 2:
-    numChannels = img.shape[2]
-  else:
-    numChannels = 1
-    
-  numChannels = 1
-  init_dictionary() # Initialize dictionary values (-256 -> 255)
-
-  # Sort dictionary
-  global sorted_list
-  sorted_list = sorted(dictionary.items(), key= lambda e: e[1][0])
   
   # Compress the image
   #
@@ -60,77 +48,83 @@ def compress( inputFile, outputFile ):
   # one piece for the single-channel case and one piece for the
   # multi-channel case.
 
-  #startTime = time.time()
 
-  outputBytes = bytearray(0)
-  S = []
-  temp = []
-  curr_idx = -1
+  yRange = img.shape[0]
+  xRange = img.shape[1]
 
-  for c in range(numChannels):
-    for y in range(y_range):
-      #print "Length of dictionary", len(dictionary)
-      #ystartTime = time.time() # TODO MOVE
-      for x in range(x_range):
-        # Calculate error of predicted from actual
-        if y-1 >= 0 and x-1 >= 0:
-            err = img[y,x,c] - (w1 * img[y-1,x-1,c] + w1 * img[y-1,x,c] + w1 * img[y,x-1,c])
-        elif x-1 >= 0:
-            err = img[y,x,c] - img[y,x-1,c]
-        elif y-1 >= 0:
-            err = img[y,x,c] - (w2 * img[y-1,x-1,c] + w2 * img[y-1,x,c])
+
+  if len(img.shape) > 2:
+    numChannels = img.shape[2]
+  else:
+    numChannels = 1
+
+  print numChannels
+  print img.shape
+
+  dictionary = dict() # Dictionary containing Key, List pairs
+  init_dictionary(dictionary) # Initialize dictionary values (-256 -> 255)
+  
+  dictIndex = 511
+
+  w1 = 0.333333 
+  w2 = 0.5
+
+  startTime = time.time()
+ 
+  outputBytes = bytearray()
+
+
+  ch = 0
+  
+  a = ""
+  for ch in range(numChannels):
+    for y in range(yRange):
+      # a = ""
+      for x in range(xRange):
+         
+        # if y-1 >= 0 and x-1 >= 0:
+        #   err = int(img[y,x,ch]) - (w1 * int(img[y-1,x-1,ch]) + w1 * int(img[y-1,x,ch]) + w1 * int(img[y,x-1,ch]))
+        # elif x-1 >= 0:
+        #   err = int(img[y,x,ch]) - int(img[y,x-1,ch])
+        # elif y-1 >= 0:
+        #   err = int(img[y,x,ch]) - (w2 * int(img[y-1,x-1,ch]) + w2 * int(img[y-1,x,ch]))
+        # else:
+        #   err = int(img[y,x,ch])
+
+        if numChannels == 1:
+          if x == 0:
+            err = int(img[y,x])
+          else:
+            err = int(img[y,x]) - int(img[y,(x-1)]) 
         else:
-            # TODO???
-            print "All prediction points are out of bounds!"
-            continue
+          if x == 0:
+            err = int(img[y,x,ch])
+          else:
+            err = int(img[y,x,ch]) - int(img[y,(x-1),ch]) 
 
-        # Round to int value
-        X = int(err)
-
-        if X > 256:
-            print "The error value is too large"
-
-        temp = list(S)
-        temp.append(X)
-
-        curr_idx = in_dictionary(temp)
-
-        if (curr_idx != -1):
-          # If in dictionary
-          S = list(temp)
+        
+        b = str(int(err))
+        c = a + 'x' + b
+       
+        if c in dictionary:
+          a = c
         else:
-          # If not in dictionary
-          append = in_dictionary(S)
+          binary = format(dictionary[a], '016b')
+          outputBytes.append(int(binary[0:8], 2))
+          outputBytes.append(int(binary[8:16], 2))
 
-          if append != -1:
-            # Split into upper and lower 8 bits
-            if append < 256:
-                outputBytes.append( 0 ) # Append zeros for the upper 8 bits
-                outputBytes.append( append ) # Lower 8 bits
-            else:
-                outputBytes.append(append >> 8) # Upper 8 bits
-                outputBytes.append(append % 256) # Lower 8 bits
-            
-            dictionary[len(dictionary)] = list(temp)
-          S = [X]
-          #print np.uint8(outputBytes)
-          #else:
-            # TODO
-            #print "Couldn't find index"
-            #dictionary[len(dictionary)] = list(S)
-            #S = [X]
+          if len(dictionary) < 65536:
+            dictionary[c] = len(dictionary) - 1
 
-          # Sort list based on new addition
-          global sorted_list
-          #sortstartTime = time.time()
-          sorted_list = sorted(dictionary.items(), key= lambda e: e[1][0])
-          #sortendTime = time.time()
-          #print "Sort time:", sortendTime-sortstartTime
-      #yendTime = time.time() # TODO MOVE
-      #print yendTime - ystartTime
+          a = 'x' + str(b)
 
-  print np.uint8(outputBytes)
-  print "Length of dictionary", len(dictionary)
+  if a:
+    binary = format(dictionary[a], '016b')
+    outputBytes.append(int(binary[0:8], 2))
+    outputBytes.append(int(binary[8:16], 2))
+
+  print len(dictionary)
+  # print dictionary
   endTime = time.time()
 
   # Output the bytes
@@ -138,21 +132,54 @@ def compress( inputFile, outputFile ):
   # Include the 'headerText' to identify the type of file.  Include
   # the rows, columns, channels so that the image shape can be
   # reconstructed.
+
   outputFile.write( '%s\n'       % headerText )
-  outputFile.write( '%d %d %d\n' % (img.shape[0], img.shape[1], img.shape[2]) )
+
+  # handle 1 channel images
+  if len(np.shape(img)) == 2:
+    outputFile.write( '%d %d %d\n' % (img.shape[0], img.shape[1], 1) )
+  else:
+    outputFile.write( '%d %d %d\n' % (img.shape[0], img.shape[1], img.shape[2]) )
   outputFile.write( outputBytes )
 
   # Print information about the compression
-  inSize  = img.shape[0] * img.shape[1] * img.shape[2]
+  if len(np.shape(img)) == 2:
+    inSize  = img.shape[0] * img.shape[1]
+  else:
+    inSize  = img.shape[0] * img.shape[1] * img.shape[2]
   outSize = len(outputBytes)
 
   sys.stderr.write( 'Input size:         %d bytes\n' % inSize )
   sys.stderr.write( 'Output size:        %d bytes\n' % outSize )
   sys.stderr.write( 'Compression factor: %.2f\n' % (inSize/float(outSize)) )
   sys.stderr.write( 'Compression time:   %.2f seconds\n' % (endTime - startTime) )
+  
+# Detect if sequence exists in dictionary
+def in_dictionary( seq ):
+
+  for i in range(len(dictionary)):
+    if dictionary[i] == seq:
+      print "found seq"
+      # return sorted_list[i][0]
+    else:
+      return -1
+
+def init_dictionary(dictionary):
+  # Init dictionary with values -255 to 255, indexed with 0-511
+  for i in range(0,512):
+    value = i-255
+    dictionary["x" + str(value)] = i
+
+def init_dec_dictionary(dictionary):
+  # Init dictionary with values -255 to 255, indexed with 0-511
+  for i in range(0,512):
+    value = i-255
+    dictionary[i] = "x" + str(value)
 
 # Uncompress an image
+
 def uncompress( inputFile, outputFile ):
+
   # Check that it's a known file
 
   if inputFile.readline() != headerText + '\n':
@@ -166,20 +193,83 @@ def uncompress( inputFile, outputFile ):
   # Read the raw bytes.
 
   inputBytes = bytearray(inputFile.read())
+  byteIter = iter(inputBytes)
+  compressed = []
 
+  for i in range(0,len(inputBytes),2):
+
+    bin1 = format(inputBytes[i], '08b')
+    bin2 = format(inputBytes[i+1], '08b')
+    binary = bin1 + bin2
+    num = int(binary,2)
+    compressed.append(num)
+
+  print len(compressed)
+    
+  
   # Build the image
   #
   # REPLACE THIS WITH YOUR OWN CODE TO CONVERT THE 'inputBytes' ARRAY INTO AN IMAGE IN 'img'.
 
-  startTime = time.time()
+  dictionary = dict() # Dictionary containing Key, List pairs
+  init_dec_dictionary(dictionary) # Initialize dictionary values (-256 -> 255)
 
+  startTime = time.time()
   img = np.empty( [rows,columns,channels], dtype=np.uint8 )
 
-  byteIter = iter(inputBytes)
-  for y in range(rows):
-    for x in range(columns):
-      for c in range(channels):
-        img[y,x,c] = byteIter.next()
+  w0 = dictionary[compressed[0]].split('x')[1:]
+  print compressed[0]
+  print dictionary[270]
+  print w0
+  img[0,0,0] = int(w0[0])
+  
+  w = w0
+  entry = ""
+  result = []
+
+  for k in compressed[1:]:
+    if k in dictionary:
+      entry = dictionary[k].split('x')[1:]
+
+      # for i in range(len(temp)):
+      #   entry += 'x' + temp[i]
+    elif k == len(dictionary):
+      # print w
+      # print w[0]
+      entry = w + [w[0]]
+      
+
+    # print w, str(w), entry[0]
+    # print entry, entry[0]
+    dictionary[len(dictionary)-1] = 'x' + 'x'.join(w) + 'x' + entry[0]
+    # for i in range(511,len(dictionary)):
+    #   print dictionary
+    for i in range(len(entry)):
+      result.append(int(entry[i]))
+
+    w = entry
+  
+  # print result
+  print len(result)
+  print len(dictionary)
+
+  # I think this works
+  # for k in compressed:
+  #   entry = dictionary[k].split(' ')[1:]
+  #   for i in range(len(entry)):
+  #     total.append(int(entry[i]))
+        
+  i = 1
+  for c in range(channels):
+    for y in range(rows):
+      for x in range(columns):
+        # print type(result[i])
+        # print result[i]
+         
+        if i < len(result):
+          img[y,x,c] = int(result[i])
+        i += 1   
+        
 
   endTime = time.time()
 
@@ -189,102 +279,7 @@ def uncompress( inputFile, outputFile ):
 
   sys.stderr.write( 'Uncompression time: %.2f seconds\n' % (endTime - startTime) )
 
-# Detect if sequence exists in dictionary
-def in_dictionary( seq ):
-  x = seq[0] # Initial value for binary search to find
-  idx = bin_search(0, len(sorted_list)-1, x) # Find starting place for linear search
-
-  #print "Searching for", seq
-
-  if idx != -1:
-    # We were able to find a starting point for the linear search
-    while sorted_list[idx][1][0] == x:
-        # While the first value is still the one we are searching for
-        dict_seq = sorted_list[idx][1] # Get list corresponding to this key
-        candidate_found = True
-
-        if len(dict_seq) <= 0 or len(seq) <= 0 or len(dict_seq) != len(seq):
-            # Sequences are incompatible, skip this index
-            if idx < len(sorted_list)-1:
-                idx += 1
-                candidate_found = False
-                continue
-            else:
-                break
-
-        # for i in range( len(dict_seq) ):
-        #     # Compare lists for equality
-        #     if seq[i] != dict_seq[i]:
-        #         candidate_found = False
-        #         break
-
-        if seq != dict_seq:
-            candidate_found = False
-
-        if not candidate_found:
-            # Go to next candidate sequence
-            if idx < len(sorted_list)-1:
-                idx += 1
-            else:
-                break
-        else:
-            # We found the sequence in the dictionary
-            break
-
-    if not candidate_found:
-        #print "Not found in dictionary."
-        #print ""
-        return -1
-    else:
-        #print "Found in dictionary at position %d." % sorted_list[idx][0]
-        #print ""
-        return sorted_list[idx][0]
-  #else:
-    #print "Starting linear search from beginning of list."
-#     # Do a linear search starting at index 0
-#     for i in range(len(sorted_list) ):
-#         idx = -1
-#         dict_seq = sorted_list[i][1]
-        
-#         if len(dict_seq) <= 0 or len(seq) <= 0 or len(dict_seq) != len(seq):
-#             continue
-
-#         for x in range( len(dict_seq) ):
-#             if x <= len(seq) and seq[x] == dict_seq[x]:
-#                 idx = i
-#             else:
-#                 idx = -1
-#                 break
-    
-#         if idx != -1:
-#           break
   
-#     print ""
-#     return idx
-
-def bin_search(l, r, x):
-    while l <= r:
-        mid = (l + r) // 2
-        compare = sorted_list[mid][1][0]
-    
-        if compare < x:
-            l = mid + 1
-        elif x < compare:
-            r = mid - 1
-        else:
-            #print "Found starting place for %d." % x
-            #print "Position %d in sorted_list." % mid
-            return mid
-    
-    #print "Couldn't find start index."
-    return -1
-
-def init_dictionary():
-  # Init dictionary with values -255 to 255, indexed with 0-511
-  for i in range(0,514):
-    value = [i-256]
-    dictionary[i] = value
-
 # The command line is 
 #
 #   main.py {flag} {input image filename} {output image filename}
@@ -328,3 +323,5 @@ elif sys.argv[1] == 'u':
 else:
   sys.stderr.write( 'Usage: main.py c|u {input image filename} {output image filename}\n' )
   sys.exit(1)
+
+
