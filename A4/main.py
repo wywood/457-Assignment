@@ -200,10 +200,11 @@ def uncompress( inputFile, outputFile ):
   # Initialize dictionary values
   init_dec_dictionary(dictionary)
 
+  # Set first pixel value
   w0 = dictionary[compressed[0]].split(DELIM)[1:]
   img[0,0,0] = int(w0[0])
-  
   w = w0
+
   entry = ""
   result = []
 
@@ -226,27 +227,25 @@ def uncompress( inputFile, outputFile ):
 
     # Iterate through list of decoded entries and enter into image
     # Move current position of image 
-    for currentVal in entry: 
+    for currentVal in entry:
       # If at end of a row, start new row
       if xIndex == columns:
         xIndex = 0
+        yIndex += 1
         feedbackVal = 0
-        yIndex +=1
-
         # If at end of column, start new channel
         if yIndex == rows:
           yIndex = 0
           cIndex += 1
-
           # If at end of channels, stop
-          if cIndex == 3:
-              cIndex = 2
+          if cIndex == channels:
+              cIndex -= 1 
               break
-    
+      xIndex += 1
+      
       # Place new value at indexed position in image
       img[yIndex,xIndex,cIndex] = int(feedbackVal) + int(currentVal)
       feedbackVal = int(feedbackVal) + int(currentVal)
-      xIndex += 1
     
     # Append S + T[0] to dictionary
     dictionary[len(dictionary)] = DELIM + DELIM.join(w) + DELIM + entry[0]
