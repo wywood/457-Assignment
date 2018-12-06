@@ -241,11 +241,12 @@ def uncompress( inputFile, outputFile ):
           if cIndex == channels:
               cIndex -= 1 
               break
-      xIndex += 1
-      
+            
       # Place new value at indexed position in image
       img[yIndex,xIndex,cIndex] = int(feedbackVal) + int(currentVal)
       feedbackVal = int(feedbackVal) + int(currentVal)
+
+      xIndex += 1
     
     # Append S + T[0] to dictionary
     dictionary[len(dictionary)] = DELIM + DELIM.join(w) + DELIM + entry[0]
