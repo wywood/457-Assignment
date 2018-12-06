@@ -24,7 +24,6 @@ def compress( inputFile, outputFile ):
   # channels is the number of component in each pixel.  The img.dtype
   # is 'uint8', meaning that each component is an 8-bit unsigned
   # integer.
-
   img = netpbm.imread( inputFile ).astype('uint8')
   
   # Compress the image
@@ -39,27 +38,33 @@ def compress( inputFile, outputFile ):
   # one piece for the single-channel case and one piece for the
   # multi-channel case.
 
+  # Number of rows and columns in img
   yRange = img.shape[0]
   xRange = img.shape[1]
 
+  # Number of channels in img
   if len(img.shape) > 2:
     numChannels = img.shape[2]
   else:
     numChannels = 1
 
+  # Print image stats to the terminal
   print "This image has %d channel(s)" % numChannels
   print "This image is %d x %d" % (yRange, xRange)
 
-  dictionary = dict()             # Dictionary containing Key, List pairs
-  init_cmp_dictionary(dictionary) # Initialize dictionary values (-255 -> 255)
+  # Dictionary containing Key, String pairs. 
+  # Here the key is the index in the dictionary, and the String is the concatenation of potentially multiple dictionary entries. 
+  # This will be updated as the LZW algorithm progresses.
+  dictionary = dict()
 
-  startTime = time.time()
+  # Initialize dictionary values (-255 -> 255)
+  init_cmp_dictionary(dictionary)
  
   outputBytes = bytearray()
+  s = "" # Subsequence
 
-  ch = 0
-  
-  a = ""
+  startTime = time.time()
+
   for ch in range(numChannels):
     for y in range(yRange):
       for x in range(xRange):
@@ -73,7 +78,6 @@ def compress( inputFile, outputFile ):
             err = int(img[y,x,ch])
           else:
             err = int(img[y,x,ch]) - int(img[y,(x-1),ch]) 
-
         
         b = str(int(err))
         c = a + 'x' + b
@@ -104,7 +108,7 @@ def compress( inputFile, outputFile ):
   # reconstructed.
   outputFile.write( '%s\n'       % headerText )
 
-  # handle 1 channel images
+  # Handle 1 channel images
   if len(np.shape(img)) == 2:
     outputFile.write( '%d %d %d\n' % (img.shape[0], img.shape[1], 1) )
   else:
@@ -125,8 +129,8 @@ def compress( inputFile, outputFile ):
   sys.stderr.write( 'Compression factor: %.2f\n' % (inSize/float(outSize)) )
   sys.stderr.write( 'Compression time:   %.2f seconds\n' % (endTime - startTime) )
 
+# Initialize dictionary with values -255 to 256, indexed with 0-511
 def init_cmp_dictionary(dictionary):
-  # Init dictionary with values -255 to 255, indexed with 0-511
   for i in range(0,512):
     value = i-255
     dictionary["x" + str(value)] = i
@@ -212,7 +216,7 @@ def uncompress( inputFile, outputFile ):
       img[y,x,c] = int(pp) + int(i)
       #print img[y,x,c]
       pp = int(pp) + int(i)
-    x += 1
+      x += 1
     #print x,y,img[y,x,c]
     
     # Append S + T[0] to dictionary
@@ -222,7 +226,8 @@ def uncompress( inputFile, outputFile ):
     w = entry
 
   endTime = time.time()
-  print x,y
+
+  print "Decompressed image size: %d x %d" % (y+1, x)
 
   # Output the image
   netpbm.imsave( outputFile, img )

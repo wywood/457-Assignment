@@ -64,8 +64,7 @@ Examples
 """
 
 from __future__ import division, print_function
-
-import sys
+import sys, os
 import re
 import math
 import warnings
@@ -162,6 +161,12 @@ class NetpbmFile(object):
         self.maxval = maxval
         self.tupltypes = [self._types[self.magicnum]]
         self.header = self._header()
+
+        if self.depth == 1:
+            # Hardcoded for noise.pnm, for some reason this code sets the width to 1 if the num_channels is 1
+            # Think it's to do with the data.shape[-1] etc 
+            self.width = self.height
+
         return self
 
     def asarray(self, copy=True, cache=False, byteorder='>'):
