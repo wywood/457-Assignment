@@ -13,8 +13,9 @@
 import sys, os, math, time, netpbm
 import numpy as np
 
-# Text at the beginning of the compressed file, to identify it
-headerText = 'my compressed image - v1.0'
+headerText = 'my compressed image - v1.0' # Text at the beginning of the compressed file, to identify it
+DELIM = '_' # Delimiter between values in the dictionary ex) 25_56_98
+MAX_DICT_LENGTH = 65536 # Maximum length of dictionary
 
 # Compress an image
 def compress( inputFile, outputFile ):
@@ -52,14 +53,15 @@ def compress( inputFile, outputFile ):
   print "This image has %d channel(s)" % numChannels
   print "This image is %d x %d" % (yRange, xRange)
 
-  # Dictionary containing Key, String pairs. 
-  # Here the key is the index in the dictionary, and the String is the concatenation of potentially multiple dictionary entries. 
-  # This will be updated as the LZW algorithm progresses.
+  # Here the dictionary key is a string, a concatenation of potentially multiple dictionary entries.
+  # The value is the index in the dictionary  
+  # This will be updated as the LZW encoding algorithm progresses.
   dictionary = dict()
 
-  # Initialize dictionary values (-255 -> 255)
+  # Initialize dictionary values
   init_cmp_dictionary(dictionary)
  
+  # Initialize byte array to contain all dictionary indices
   outputBytes = bytearray()
   s = "" # Subsequence
 
@@ -68,36 +70,41 @@ def compress( inputFile, outputFile ):
   for ch in range(numChannels):
     for y in range(yRange):
       for x in range(xRange):
-        if numChannels == 1:
-          if x == 0:
-            err = int(img[y,x])
-          else:
-            err = int(img[y,x]) - int(img[y,(x-1)]) 
-        else:
-          if x == 0:
-            err = int(img[y,x,ch])
-          else:
-            err = int(img[y,x,ch]) - int(img[y,(x-1),ch]) 
+        # Calculate the 'error' (difference) between the previous and current pixel values 
+        err = get_err(numChannels, y, x, ch, img)
         
-        b = str(int(err))
-        c = a + 'x' + b
+        b = str( int(err) ) # Truncate to int and convert to string
+        c = s + DELIM + b # From the notes on LZW encoding, c would be s+x where x is err
        
         if c in dictionary:
-          a = c
+          # If c is in the dicitonary we continue and set the subsequence (s) to c
+          s = c
         else:
-          binary = format(dictionary[a], '016b')
-          outputBytes.append(int(binary[0:8], 2))
-          outputBytes.append(int(binary[8:16], 2))
+          # If c is not in the dictionary, we append the dictionary index of s to outputBytes,
+          # then add c to the dictionary
 
-          if len(dictionary) < 65536:
+          # Parse dictionary index into two bytes by converting to binary
+          index_dec = dictionary[s]
+          index_bin = format(index_dec, '016b') # Convert to binary
+          upper = index_bin[8:16]
+          lower = index_bin[0:8]
+          outputBytes.append( int(lower, 2) ) # Append lower 8 bits 
+          outputBytes.append( int(upper, 2) ) # Append upper 8 bits
+
+          if len(dictionary) < MAX_DICT_LENGTH:
             dictionary[c] = len(dictionary) - 1
 
-          a = 'x' + str(b)
+          s = DELIM + str(b)
 
-  if a:
-    binary = format(dictionary[a], '016b')
-    outputBytes.append(int(binary[0:8], 2))
-    outputBytes.append(int(binary[8:16], 2))
+  if s:
+    # After the main algorithm, if a subsequence still exists we must add it to outputBytes
+    # Parse dictionary index into two bytes by converting to binary
+    index_dec = dictionary[s]
+    index_bin = format(index_dec, '016b') # Convert to binary
+    upper = index_bin[8:16]
+    lower = index_bin[0:8]
+    outputBytes.append( int(lower, 2) ) # Append lower 8 bits 
+    outputBytes.append( int(upper, 2) ) # Append upper 8 bits
 
   endTime = time.time()
 
@@ -129,23 +136,34 @@ def compress( inputFile, outputFile ):
   sys.stderr.write( 'Compression factor: %.2f\n' % (inSize/float(outSize)) )
   sys.stderr.write( 'Compression time:   %.2f seconds\n' % (endTime - startTime) )
 
-# Initialize dictionary with values -255 to 256, indexed with 0-511
+# Init compression dictionary (same as decompression dictionary with key values swapped for ease of use)
 def init_cmp_dictionary(dictionary):
   for i in range(0,512):
     value = i-255
-    dictionary["x" + str(value)] = i
+    dictionary[ DELIM + str(value) ] = i
 
-def init_dec_dictionary(dictionary):
-  # Init dictionary with values -255 to 255, indexed with 0-511
-  dictIndex = 0
-  for d in range(-255, 256):
-    dictionary[dictIndex] = "x" + str(d)
-    dictIndex += 1
+# Calculate the 'error' (difference) between the previous and current pixel values 
+def get_err(numChannels, y, x, ch, img):
+  err = 0
+  if numChannels == 1:
+    # If the number of channels is 1, we use img[y,x] instead
+    # This is only code specific to this case (other than where we set numChannels)
+    if x == 0:
+    # At the beginning of the column there is no previous pixel
+      err = int( img[y,x] )
+    else:
+      err = int( img[y,x] ) - int( img[y,(x-1)] ) 
+  else:
+    if x == 0:
+      err = int( img[y,x,ch] )
+    else:
+      err = int( img[y,x,ch] ) - int( img[y,(x-1),ch] ) 
+
+  return err
 
 # Uncompress an image
 def uncompress( inputFile, outputFile ):
   # Check that it's a known file
-
   if inputFile.readline() != headerText + '\n':
     sys.stderr.write( "Input is not in the '%s' format.\n" % headerText )
     sys.exit(1)
@@ -154,32 +172,35 @@ def uncompress( inputFile, outputFile ):
   rows, columns, channels = [ int(x) for x in inputFile.readline().split() ]
 
   # Read the raw bytes.
-  inputBytes = bytearray(inputFile.read())
+  inputBytes = bytearray( inputFile.read() )
   byteIter = iter(inputBytes)
-
-  compressed = []
-
-  # Get the indices in decimal format (inputBytes stores them in 2 separate bytes)
-  for i in range(0,len(inputBytes),2):
-    bin1 = format(inputBytes[i], '008b')
-    bin2 = format(inputBytes[i+1], '008b')
-    binary = bin1 + bin2
-    num = int(binary,2)
-    compressed.append(num)
-
-  print "Length of inputBytes in decimal:", len(compressed)
+  
+  img = np.empty( [rows,columns,channels], dtype=np.uint8 )
   
   # Build the image
   #
   # REPLACE THIS WITH YOUR OWN CODE TO CONVERT THE 'inputBytes' ARRAY INTO AN IMAGE IN 'img'.
 
-  dictionary = dict() # Dictionary containing Key, List pairs
-  init_dec_dictionary(dictionary) # Initialize dictionary values (-256 -> 255)
+  compressed = [] # List that will contain all the dictionary indices
 
-  startTime = time.time()
-  img = np.empty( [rows,columns,channels], dtype=np.uint8 )
+  # Convert the dictionary indices (that were separated into two separate bytes) back to their original values
+  for i in range(0, len(inputBytes), 2):
+    # Convert back to binary in order to reconstruct original index
+    lower = format(inputBytes[i], '008b') 
+    upper = format(inputBytes[i+1], '008b')
+    orig_idx = lower + upper # Concatenate upper and lower bits to get original index value
+    orig_idx = int(orig_idx,2) # Convert back to int
+    compressed.append(orig_idx)
 
-  w0 = dictionary[compressed[0]].split('x')[1:]
+  # Here the dictionary key is the index in the dictionary  
+  # The value is a string, a concatenation of potentially multiple dictionary entries.
+  # This will be updated as the LZW encoding algorithm progresses.
+  dictionary = dict()
+
+  # Initialize dictionary values
+  init_dec_dictionary(dictionary)
+
+  w0 = dictionary[compressed[0]].split(DELIM)[1:]
   img[0,0,0] = int(w0[0])
   
   w = w0
@@ -193,10 +214,12 @@ def uncompress( inputFile, outputFile ):
   c = 0
   pp = w0[0]
 
+  startTime = time.time()
+
   for k in compressed[1:]:
     if k in dictionary:
       # If code is in dictionary
-      entry = dictionary[k].split('x')[1:]
+      entry = dictionary[k].split(DELIM)[1:]
     else:
       # If code not in dictionary, T = S+S[0]
       entry = w + [w[0]]
@@ -214,13 +237,11 @@ def uncompress( inputFile, outputFile ):
               break
     
       img[y,x,c] = int(pp) + int(i)
-      #print img[y,x,c]
       pp = int(pp) + int(i)
       x += 1
-    #print x,y,img[y,x,c]
     
     # Append S + T[0] to dictionary
-    dictionary[len(dictionary)] = 'x' + 'x'.join(w) + 'x' + entry[0]
+    dictionary[len(dictionary)] = DELIM + DELIM.join(w) + DELIM + entry[0]
 
     #S + T
     w = entry
@@ -234,13 +255,18 @@ def uncompress( inputFile, outputFile ):
 
   sys.stderr.write( 'Uncompression time: %.2f seconds\n' % (endTime - startTime) )
 
+# Init decompression dictionary (same as compression dictionary with key values swapped for ease of use)
+def init_dec_dictionary(dictionary):
+  for i in range(0,511):
+    value = i-255
+    dictionary[i] = DELIM + str(value)
+
 # The command line is 
 #
 #   main.py {flag} {input image filename} {output image filename}
 #
 # where {flag} is one of 'c' or 'u' for compress or uncompress and
 # either filename can be '-' for standard input or standard output.
-
 
 if len(sys.argv) < 4:
   sys.stderr.write( 'Usage: main.py c|u {input image filename} {output image filename}\n' )
