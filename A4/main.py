@@ -256,7 +256,7 @@ def uncompress( inputFile, outputFile ):
 
   endTime = time.time()
 
-  print "Decompressed image size: %d x %d" % (y+1, x)
+  print "Decompressed image size: %d x %d" % (yIndex+1, xIndex)
 
   # Output the image
   netpbm.imsave( outputFile, img )
