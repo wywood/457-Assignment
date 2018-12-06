@@ -4,9 +4,10 @@ Nat Wong - 10137044 - 13nrw5
 Wyatt Wood - 10129798 - 13ww11
 
 TA PLEASE NOTE: 
-The netpbm.py doesn't work. We never see any picture display, the program simply runs and closes with no error messages seen.
-This is possibly and issue with the python or library versions we've installed, we couldn't tell.
+The netpbm.py program doesn't work. We never see any picture displayed, the program simply runs and closes with no error messages seen.
+This is possibly an issue with the python or library versions we've installed, we couldn't tell.
 We developed on Windows and were running the program from the powershell command line.
+
 Therefore we have included our own version of the netpbm file which we found online, 
 with one modification to display single channel images correctly. The proper credit is given in the file.
 
