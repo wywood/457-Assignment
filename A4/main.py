@@ -10,23 +10,14 @@
 #
 #   python netpbm.py images/cortex.pnm
 
-
 import sys, os, math, time, netpbm
 import numpy as np
 
-
 # Text at the beginning of the compressed file, to identify it
-
-
 headerText = 'my compressed image - v1.0'
 
-
-
 # Compress an image
-
-
 def compress( inputFile, outputFile ):
-
   # Read the input file into a numpy array of 8-bit values
   #
   # The img.shape is a 3-type with rows,columns,channels, where
@@ -48,49 +39,30 @@ def compress( inputFile, outputFile ):
   # one piece for the single-channel case and one piece for the
   # multi-channel case.
 
-
   yRange = img.shape[0]
   xRange = img.shape[1]
-
 
   if len(img.shape) > 2:
     numChannels = img.shape[2]
   else:
     numChannels = 1
 
-  print numChannels
-  print img.shape
+  print "This image has %d channel(s)" % numChannels
+  print "This image is %d x %d" % (yRange, xRange)
 
-  dictionary = dict() # Dictionary containing Key, List pairs
-  init_dictionary(dictionary) # Initialize dictionary values (-256 -> 255)
-  
-  dictIndex = 511
-
-  w1 = 0.333333 
-  w2 = 0.5
+  dictionary = dict()             # Dictionary containing Key, List pairs
+  init_cmp_dictionary(dictionary) # Initialize dictionary values (-255 -> 255)
 
   startTime = time.time()
  
   outputBytes = bytearray()
-
 
   ch = 0
   
   a = ""
   for ch in range(numChannels):
     for y in range(yRange):
-      # a = ""
       for x in range(xRange):
-         
-        # if y-1 >= 0 and x-1 >= 0:
-        #   err = int(img[y,x,ch]) - (w1 * int(img[y-1,x-1,ch]) + w1 * int(img[y-1,x,ch]) + w1 * int(img[y,x-1,ch]))
-        # elif x-1 >= 0:
-        #   err = int(img[y,x,ch]) - int(img[y,x-1,ch])
-        # elif y-1 >= 0:
-        #   err = int(img[y,x,ch]) - (w2 * int(img[y-1,x-1,ch]) + w2 * int(img[y-1,x,ch]))
-        # else:
-        #   err = int(img[y,x,ch])
-
         if numChannels == 1:
           if x == 0:
             err = int(img[y,x])
@@ -123,8 +95,6 @@ def compress( inputFile, outputFile ):
     outputBytes.append(int(binary[0:8], 2))
     outputBytes.append(int(binary[8:16], 2))
 
-  print len(dictionary)
-  # print dictionary
   endTime = time.time()
 
   # Output the bytes
@@ -132,7 +102,6 @@ def compress( inputFile, outputFile ):
   # Include the 'headerText' to identify the type of file.  Include
   # the rows, columns, channels so that the image shape can be
   # reconstructed.
-
   outputFile.write( '%s\n'       % headerText )
 
   # handle 1 channel images
@@ -140,6 +109,7 @@ def compress( inputFile, outputFile ):
     outputFile.write( '%d %d %d\n' % (img.shape[0], img.shape[1], 1) )
   else:
     outputFile.write( '%d %d %d\n' % (img.shape[0], img.shape[1], img.shape[2]) )
+
   outputFile.write( outputBytes )
 
   # Print information about the compression
@@ -147,24 +117,15 @@ def compress( inputFile, outputFile ):
     inSize  = img.shape[0] * img.shape[1]
   else:
     inSize  = img.shape[0] * img.shape[1] * img.shape[2]
+
   outSize = len(outputBytes)
 
   sys.stderr.write( 'Input size:         %d bytes\n' % inSize )
   sys.stderr.write( 'Output size:        %d bytes\n' % outSize )
   sys.stderr.write( 'Compression factor: %.2f\n' % (inSize/float(outSize)) )
   sys.stderr.write( 'Compression time:   %.2f seconds\n' % (endTime - startTime) )
-  
-# Detect if sequence exists in dictionary
-def in_dictionary( seq ):
 
-  for i in range(len(dictionary)):
-    if dictionary[i] == seq:
-      print "found seq"
-      # return sorted_list[i][0]
-    else:
-      return -1
-
-def init_dictionary(dictionary):
+def init_cmp_dictionary(dictionary):
   # Init dictionary with values -255 to 255, indexed with 0-511
   for i in range(0,512):
     value = i-255
@@ -172,14 +133,13 @@ def init_dictionary(dictionary):
 
 def init_dec_dictionary(dictionary):
   # Init dictionary with values -255 to 255, indexed with 0-511
-  for i in range(0,512):
-    value = i-255
-    dictionary[i] = "x" + str(value)
+  dictIndex = 0
+  for d in range(-255, 256):
+    dictionary[dictIndex] = "x" + str(d)
+    dictIndex += 1
 
 # Uncompress an image
-
 def uncompress( inputFile, outputFile ):
-
   # Check that it's a known file
 
   if inputFile.readline() != headerText + '\n':
@@ -187,25 +147,23 @@ def uncompress( inputFile, outputFile ):
     sys.exit(1)
     
   # Read the rows, columns, and channels.  
-
   rows, columns, channels = [ int(x) for x in inputFile.readline().split() ]
 
   # Read the raw bytes.
-
   inputBytes = bytearray(inputFile.read())
   byteIter = iter(inputBytes)
+
   compressed = []
 
+  # Get the indices in decimal format (inputBytes stores them in 2 separate bytes)
   for i in range(0,len(inputBytes),2):
-
-    bin1 = format(inputBytes[i], '08b')
-    bin2 = format(inputBytes[i+1], '08b')
+    bin1 = format(inputBytes[i], '008b')
+    bin2 = format(inputBytes[i+1], '008b')
     binary = bin1 + bin2
     num = int(binary,2)
     compressed.append(num)
 
-  print len(compressed)
-    
+  print "Length of inputBytes in decimal:", len(compressed)
   
   # Build the image
   #
@@ -218,68 +176,59 @@ def uncompress( inputFile, outputFile ):
   img = np.empty( [rows,columns,channels], dtype=np.uint8 )
 
   w0 = dictionary[compressed[0]].split('x')[1:]
-  print compressed[0]
-  print dictionary[270]
-  print w0
   img[0,0,0] = int(w0[0])
   
   w = w0
   entry = ""
   result = []
 
+  count = 0
+
+  x = 1
+  y = 0
+  c = 0
+  pp = w0[0]
+
   for k in compressed[1:]:
     if k in dictionary:
+      # If code is in dictionary
       entry = dictionary[k].split('x')[1:]
-
-      # for i in range(len(temp)):
-      #   entry += 'x' + temp[i]
-    elif k == len(dictionary):
-      # print w
-      # print w[0]
+    else:
+      # If code not in dictionary, T = S+S[0]
       entry = w + [w[0]]
-      
 
-    # print w, str(w), entry[0]
-    # print entry, entry[0]
-    dictionary[len(dictionary)-1] = 'x' + 'x'.join(w) + 'x' + entry[0]
-    # for i in range(511,len(dictionary)):
-    #   print dictionary
-    for i in range(len(entry)):
-      result.append(int(entry[i]))
+    for i in entry: 
+      if x == columns:
+        x = 0
+        pp = 0
+        y +=1
+        if y == rows:
+          y = 0
+          c += 1
+          if c == 3:
+              c = 2
+              break
+    
+      img[y,x,c] = int(pp) + int(i)
+      #print img[y,x,c]
+      pp = int(pp) + int(i)
+    x += 1
+    #print x,y,img[y,x,c]
+    
+    # Append S + T[0] to dictionary
+    dictionary[len(dictionary)] = 'x' + 'x'.join(w) + 'x' + entry[0]
 
+    #S + T
     w = entry
-  
-  # print result
-  print len(result)
-  print len(dictionary)
-
-  # I think this works
-  # for k in compressed:
-  #   entry = dictionary[k].split(' ')[1:]
-  #   for i in range(len(entry)):
-  #     total.append(int(entry[i]))
-        
-  i = 1
-  for c in range(channels):
-    for y in range(rows):
-      for x in range(columns):
-        # print type(result[i])
-        # print result[i]
-         
-        if i < len(result):
-          img[y,x,c] = int(result[i])
-        i += 1   
-        
 
   endTime = time.time()
+  print x,y
 
   # Output the image
-
   netpbm.imsave( outputFile, img )
 
   sys.stderr.write( 'Uncompression time: %.2f seconds\n' % (endTime - startTime) )
 
-  
 # The command line is 
 #
 #   main.py {flag} {input image filename} {output image filename}
