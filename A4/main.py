@@ -207,15 +207,15 @@ def uncompress( inputFile, outputFile ):
   entry = ""
   result = []
 
-  count = 0
-
-  x = 1
-  y = 0
-  c = 0
-  pp = w0[0]
+  # Initialize image indexes for y position, x position, and channel
+  xIndex = 1
+  yIndex = 0
+  cIndex = 0
+  feedbackVal = w0[0]
 
   startTime = time.time()
 
+  # Loop through key values
   for k in compressed[1:]:
     if k in dictionary:
       # If code is in dictionary
@@ -224,26 +224,34 @@ def uncompress( inputFile, outputFile ):
       # If code not in dictionary, T = S+S[0]
       entry = w + [w[0]]
 
-    for i in entry: 
-      if x == columns:
-        x = 0
-        pp = 0
-        y +=1
-        if y == rows:
-          y = 0
-          c += 1
-          if c == 3:
-              c = 2
+    # Iterate through list of decoded entries and enter into image
+    # Move current position of image 
+    for currentVal in entry: 
+      # If at end of a row, start new row
+      if xIndex == columns:
+        xIndex = 0
+        feedbackVal = 0
+        yIndex +=1
+
+        # If at end of column, start new channel
+        if yIndex == rows:
+          yIndex = 0
+          cIndex += 1
+
+          # If at end of channels, stop
+          if cIndex == 3:
+              cIndex = 2
               break
     
-      img[y,x,c] = int(pp) + int(i)
-      pp = int(pp) + int(i)
-      x += 1
+      # Place new value at indexed position in image
+      img[yIndex,xIndex,cIndex] = int(feedbackVal) + int(currentVal)
+      feedbackVal = int(feedbackVal) + int(currentVal)
+      xIndex += 1
     
     # Append S + T[0] to dictionary
     dictionary[len(dictionary)] = DELIM + DELIM.join(w) + DELIM + entry[0]
 
-    #S + T
+    # S + T
     w = entry
 
   endTime = time.time()
